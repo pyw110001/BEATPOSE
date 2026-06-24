@@ -21,6 +21,8 @@ export class AudioEngine {
   private songId = '';
   private customSource: AudioBufferSourceNode | null = null;
   private isCustomTrack = false;
+  private previewSource: AudioBufferSourceNode | null = null;
+  private previewStartTime = 0;
 
   constructor() {
     // Audio Context is initialized lazily upon user interaction
@@ -528,6 +530,41 @@ export class AudioEngine {
       osc.start(now + index * 0.06);
       osc.stop(now + index * 0.06 + 0.3);
     });
+  }
+
+  public startPreview(buffer: AudioBuffer) {
+    this.initCtx();
+    if (!this.ctx) return;
+    this.stopPreview();
+
+    this.previewSource = this.ctx.createBufferSource();
+    this.previewSource.buffer = buffer;
+    this.previewSource.connect(this.ctx.destination);
+    this.previewStartTime = this.ctx.currentTime;
+    
+    this.previewSource.onended = () => {
+      this.previewSource = null;
+    };
+    
+    this.previewSource.start(0);
+  }
+
+  public stopPreview() {
+    if (this.previewSource) {
+      try {
+        this.previewSource.stop();
+      } catch (e) {}
+      this.previewSource = null;
+    }
+  }
+
+  public getPreviewTime(): number {
+    if (!this.ctx || !this.previewSource) return 0;
+    return this.ctx.currentTime - this.previewStartTime;
+  }
+
+  public isPreviewPlaying(): boolean {
+    return !!this.previewSource;
   }
 }
 

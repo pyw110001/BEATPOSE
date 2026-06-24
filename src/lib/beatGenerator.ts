@@ -3,44 +3,40 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { BeatNote, SongTrack, BeatType } from '../types';
+import { ChartNote, SongTrack, BeatType, BeatGrid } from '../types';
 
 // Helper to generate precise rhythmic beat lists matching song BPM
 export function generateSongBeats(
   id: string,
-  bpm: number,
+  grid: BeatGrid,
   duration: number,
   difficulty: 'Easy' | 'Medium' | 'Hard'
-): BeatNote[] {
-  const beats: BeatNote[] = [];
-  const secondsPerBeat = 60.0 / bpm;
+): ChartNote[] {
+  const beats: ChartNote[] = [];
+  const secondsPerBeat = 60.0 / grid.bpm;
   
-  // Choose frequency multiplier based on difficulty
-  // Easy: beat every 4 quarter beats
-  // Medium: beat every 2 quarter beats
-  // Hard: beat every beat or complex combinations
+  // Choose frequency multiplier based on difficulty (in beats)
   let stepInterval = 4;
   if (difficulty === 'Medium') stepInterval = 2;
-  if (difficulty === 'Hard') stepInterval = 1.5;
+  if (difficulty === 'Hard') stepInterval = 1;
 
   let idCounter = 1;
 
-  // Let's loop step beats from 4 seconds onward (to give user time to prepare) up to duration - 3 seconds
-  const startOffset = 4.0; // seconds
-  const endOffset = duration - 3.0; // seconds
+  // Start beat index: absolute time must be at least 4.0s for preparation
+  const startBeat = Math.max(0, Math.ceil((4.0 - grid.firstBeatOffsetSec) / secondsPerBeat));
+  
+  // End beat index: absolute time up to duration - 3.0s
+  const endBeat = Math.floor((duration - 3.0 - grid.firstBeatOffsetSec) / secondsPerBeat);
 
-  const totalBeats = Math.floor((endOffset - startOffset) / (secondsPerBeat * stepInterval));
-
-  for (let i = 0; i < totalBeats; i++) {
-    const beatTime = startOffset + i * secondsPerBeat * stepInterval;
+  for (let beat = startBeat; beat <= endBeat; beat += stepInterval) {
+    const beatTime = grid.firstBeatOffsetSec + beat * secondsPerBeat;
     
     // Choose the target beat action type
-    // Random or structured:
-    // Every 8th beat could be a Crouch to add dynamic excitement
+    const index = beats.length;
     let type: BeatType = 'left';
-    if (i % 8 === 7) {
+    if (index % 8 === 7) {
       type = 'crouch';
-    } else if (i % 2 === 1) {
+    } else if (index % 2 === 1) {
       type = 'right';
     }
 
@@ -61,6 +57,7 @@ export function generateSongBeats(
 
     beats.push({
       id: `${id}_beat_${idCounter++}`,
+      beat,
       time: parseFloat(beatTime.toFixed(3)),
       type,
       x: xFraction,
@@ -82,7 +79,14 @@ export const TEMPLATE_SONGS: SongTrack[] = [
     duration: 50,
     difficulty: 'Easy',
     description: 'A smooth nostalgic groove with warm basslines and predictable eighth-note patterns.',
-    beats: generateSongBeats('synthwave', 110, 50, 'Easy'),
+    beatGrid: {
+      bpm: 110,
+      firstBeatOffsetSec: 0.0,
+      beatsPerBar: 4,
+      inputLatencySec: 0.05,
+      audioLatencySec: 0.0,
+    },
+    beats: [],
   },
   {
     id: 'cyberpunk',
@@ -92,7 +96,14 @@ export const TEMPLATE_SONGS: SongTrack[] = [
     duration: 55,
     difficulty: 'Hard',
     description: 'An aggressive, high-speed electronic banger with fast sweeps and frequent crouching dodges.',
-    beats: generateSongBeats('cyberpunk', 135, 55, 'Hard'),
+    beatGrid: {
+      bpm: 135,
+      firstBeatOffsetSec: 0.0,
+      beatsPerBar: 4,
+      inputLatencySec: 0.05,
+      audioLatencySec: 0.0,
+    },
+    beats: [],
   },
   {
     id: 'ambient',
@@ -102,6 +113,20 @@ export const TEMPLATE_SONGS: SongTrack[] = [
     duration: 45,
     difficulty: 'Medium',
     description: 'Relaxed cybernetic pulses with spacious intervals and gentle bell melodies.',
-    beats: generateSongBeats('ambient', 90, 45, 'Medium'),
+    beatGrid: {
+      bpm: 90,
+      firstBeatOffsetSec: 0.0,
+      beatsPerBar: 4,
+      inputLatencySec: 0.05,
+      audioLatencySec: 0.0,
+    },
+    beats: [],
   },
 ];
+
+// Initialize templates beats list based on their respective beatGrid
+TEMPLATE_SONGS.forEach((song) => {
+  if (song.beatGrid) {
+    song.beats = generateSongBeats(song.id, song.beatGrid, song.duration, song.difficulty);
+  }
+});

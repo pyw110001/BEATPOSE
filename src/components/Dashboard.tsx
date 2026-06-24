@@ -45,6 +45,44 @@ export default function Dashboard({
   const [songName, setSongName] = useState('');
   const [bpm, setBpm] = useState(120);
   const [difficulty, setDifficulty] = useState<'Easy' | 'Medium' | 'Hard'>('Medium');
+  const [firstBeatOffsetSec, setFirstBeatOffsetSec] = useState(0.0);
+  const [inputLatencySec, setInputLatencySec] = useState(0.05); // 50ms default
+  const [isPreviewPlaying, setIsPreviewPlaying] = useState(false);
+
+  // Sync preview ended state naturally
+  useEffect(() => {
+    if (!isPreviewPlaying) return;
+    const interval = setInterval(() => {
+      if (!gameAudioEngine.isPreviewPlaying()) {
+        setIsPreviewPlaying(false);
+      }
+    }, 250);
+    return () => clearInterval(interval);
+  }, [isPreviewPlaying]);
+
+  // Cleanup preview on unmount
+  useEffect(() => {
+    return () => {
+      gameAudioEngine.stopPreview();
+    };
+  }, []);
+
+  const handleTogglePreview = () => {
+    if (!customAudioBuffer) return;
+    if (isPreviewPlaying) {
+      gameAudioEngine.stopPreview();
+      setIsPreviewPlaying(false);
+    } else {
+      gameAudioEngine.startPreview(customAudioBuffer);
+      setIsPreviewPlaying(true);
+    }
+  };
+
+  const handleTapFirstBeat = () => {
+    if (!isPreviewPlaying) return;
+    const time = gameAudioEngine.getPreviewTime();
+    setFirstBeatOffsetSec(parseFloat(time.toFixed(3)));
+  };
 
   const t = translations[lang];
 
@@ -93,11 +131,22 @@ export default function Dashboard({
       return;
     }
 
+    gameAudioEngine.stopPreview();
+    setIsPreviewPlaying(false);
+
     const duration = Math.round(customAudioBuffer.duration);
     const newTrackId = `custom_${Date.now()}`;
     
-    // Generate beats based on BPM, duration and difficulty
-    const beats = generateSongBeats(newTrackId, bpm, duration, difficulty);
+    const beatGrid = {
+      bpm: bpm,
+      firstBeatOffsetSec: firstBeatOffsetSec,
+      beatsPerBar: 4,
+      inputLatencySec: inputLatencySec,
+      audioLatencySec: 0.0,
+    };
+
+    // Generate beats based on BeatGrid, duration and difficulty
+    const beats = generateSongBeats(newTrackId, beatGrid, duration, difficulty);
 
     const newTrack: SongTrack = {
       id: newTrackId,
@@ -108,6 +157,7 @@ export default function Dashboard({
       difficulty: difficulty,
       description: lang === 'zh' ? '您上传的本地音乐音轨，已准备就绪！' : 'Your uploaded local music track. Ready to play!',
       beats: beats,
+      beatGrid: beatGrid,
       isCustom: true,
       audioBuffer: customAudioBuffer,
     };
@@ -119,6 +169,8 @@ export default function Dashboard({
     setSongName('');
     setBpm(120);
     setDifficulty('Medium');
+    setFirstBeatOffsetSec(0.0);
+    setInputLatencySec(0.05);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -354,6 +406,30 @@ export default function Dashboard({
             {/* Form settings (Visible once file is loaded) */}
             {customAudioBuffer && (
               <div className="space-y-3.5 pt-2 border-t border-white/5 animate-in fade-in slide-in-from-top-2 duration-300">
+                {/* Preview controls */}
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={handleTogglePreview}
+                    className={`flex-1 py-1.5 rounded-lg text-xs font-semibold cursor-pointer border transition text-center select-none ${
+                      isPreviewPlaying 
+                        ? 'bg-rose-500/10 text-rose-300 border-rose-500/20 hover:bg-rose-500/20' 
+                        : 'bg-violet-600/10 text-violet-300 border-violet-500/20 hover:bg-violet-600/20'
+                    }`}
+                  >
+                    {isPreviewPlaying ? t.stopPreview : t.playPreview}
+                  </button>
+                  {isPreviewPlaying && (
+                    <button
+                      type="button"
+                      onClick={handleTapFirstBeat}
+                      className="flex-1 py-1.5 bg-amber-500/10 text-amber-300 border border-amber-500/20 hover:bg-amber-500/20 rounded-lg text-xs font-semibold cursor-pointer transition text-center select-none animate-pulse"
+                    >
+                      🥁 {t.tapFirstBeat}
+                    </button>
+                  )}
+                </div>
+
                 {/* Song Name Input */}
                 <div className="space-y-1">
                   <label className="text-[9px] text-white/50 font-mono uppercase block">{t.songTitle}</label>
@@ -364,6 +440,51 @@ export default function Dashboard({
                     placeholder={lang === 'zh' ? '请输入歌曲标题' : 'Enter song title'}
                     className="w-full bg-white/5 border border-white/10 focus:border-violet-500/50 rounded-lg px-3 py-1.5 text-xs text-white outline-none transition"
                   />
+                </div>
+
+                <div className="space-y-2 bg-white/5 border border-white/10 rounded-xl p-3">
+                  {/* First Beat Offset (sec) */}
+                  <div className="space-y-1.5">
+                    <label className="text-[9px] text-white/50 font-mono uppercase block">{t.firstBeatOffset}</label>
+                    <div className="flex gap-2 items-center">
+                      <input 
+                        type="number" 
+                        value={firstBeatOffsetSec}
+                        onChange={(e) => setFirstBeatOffsetSec(Math.max(0, parseFloat(e.target.value) || 0))}
+                        min="0"
+                        step="0.01"
+                        className="flex-1 bg-black/40 border border-white/10 focus:border-violet-500/50 rounded-lg px-2.5 py-1.5 text-xs text-white outline-none transition font-mono"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setFirstBeatOffsetSec(prev => Math.max(0, parseFloat((prev - 0.01).toFixed(3))))}
+                        className="bg-white/5 border border-white/10 hover:bg-white/10 text-white font-mono text-[10px] px-2 py-1.5 rounded-lg transition active:scale-95 cursor-pointer"
+                      >
+                        -10ms
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setFirstBeatOffsetSec(prev => parseFloat((prev + 0.01).toFixed(3)))}
+                        className="bg-white/5 border border-white/10 hover:bg-white/10 text-white font-mono text-[10px] px-2 py-1.5 rounded-lg transition active:scale-95 cursor-pointer"
+                      >
+                        +10ms
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Input Latency Compensation */}
+                  <div className="space-y-1">
+                    <label className="text-[9px] text-white/50 font-mono uppercase block">{t.inputLatency}</label>
+                    <input 
+                      type="number" 
+                      value={Math.round(inputLatencySec * 1000)}
+                      onChange={(e) => setInputLatencySec(Math.max(0, (parseInt(e.target.value) || 0) / 1000))}
+                      min="0"
+                      max="500"
+                      step="5"
+                      className="w-full bg-black/40 border border-white/10 focus:border-violet-500/50 rounded-lg px-2.5 py-1.5 text-xs text-white outline-none transition font-mono"
+                    />
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3.5">

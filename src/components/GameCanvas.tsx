@@ -165,6 +165,15 @@ export default function GameCanvas({
     const width = canvas.width;
     const height = canvas.height;
 
+    // Grid BPM and dynamic approach time based on beats (default 4 beats)
+    const bpm = track.bpm || 120;
+    const approachBeats = 4;
+    const approachSec = approachBeats * (60.0 / bpm);
+
+    // Latency compensated Judge Time
+    const inputLatencySec = track.beatGrid?.inputLatencySec || 0.0;
+    const judgeTime = currentTime - inputLatencySec;
+
     // 1. Reset Context with Pitch Black background matching Immersive UI
     ctx.fillStyle = '#050505';
     ctx.fillRect(0, 0, width, height);
@@ -202,10 +211,10 @@ export default function GameCanvas({
 
     activeBeats.forEach((note) => {
       // Delta time: positive is in the future, negative is passed
-      const timeDelta = note.time - currentTime;
+      const timeDelta = note.time - judgeTime;
 
       // Note is way in the future -> skip rendering
-      if (timeDelta > 1.8) return;
+      if (timeDelta > approachSec) return;
 
       // Note has passed standard timing threshold and wasn't hit -> trigger automatic Miss
       if (timeDelta < -0.28 && !note.hit && !note.miss) {
@@ -223,7 +232,7 @@ export default function GameCanvas({
       // Draw active note
       if (timeDelta >= -0.3 && !note.hit && !note.miss) {
         // Calculate progress percentage: 0.0 (just spawning far away) to 1.0 (perfect hit peak time)
-        const progress = Math.max(0, (1.8 - timeDelta) / 1.8);
+        const progress = Math.max(0, 1.0 - timeDelta / approachSec);
         
         let startX = width / 2;
         let startY = height * 0.28; // Spawns from "horizon" midpoint

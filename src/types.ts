@@ -27,16 +27,27 @@ export interface PoseData {
 
 export type BeatType = 'left' | 'right' | 'crouch';
 
-export interface BeatNote {
+export interface BeatGrid {
+  bpm: number;
+  firstBeatOffsetSec: number;
+  beatsPerBar: number;
+  inputLatencySec?: number;
+  audioLatencySec?: number;
+}
+
+export interface ChartNote {
   id: string;
-  time: number; // Peak time of the beat in seconds relative to song start
+  beat: number;
+  time: number;
   type: BeatType;
-  x: number;    // Multiplier/Target canvas coordinate X (e.g. percentage 0.1 to 0.9 or exact coordinate)
-  y: number;    // Multiplier/Target canvas coordinate Y
-  hit: boolean;
-  miss: boolean;
+  x: number;
+  y: number;
+  hit?: boolean;
+  miss?: boolean;
   hitRating?: 'Perfect' | 'Good' | 'Miss';
 }
+
+export type BeatNote = ChartNote;
 
 export interface SongTrack {
   id: string;
@@ -46,7 +57,8 @@ export interface SongTrack {
   duration: number; // In seconds
   difficulty: 'Easy' | 'Medium' | 'Hard';
   description: string;
-  beats: BeatNote[];
+  beats: ChartNote[];
+  beatGrid?: BeatGrid;
   isCustom?: boolean;
   audioBuffer?: AudioBuffer;
 }

@@ -99,13 +99,34 @@ export default function App() {
       missCount: 0,
     });
 
-    // Generate fresh randomized beats
-    const randomizedTrack = {
+    // Reset hits/misses of the track's beats instead of generating new ones!
+    // If it has no beats, generate default beats once.
+    let beats = track.beats || [];
+    if (beats.length === 0) {
+      const defaultGrid = track.beatGrid || {
+        bpm: track.bpm,
+        firstBeatOffsetSec: 0.0,
+        beatsPerBar: 4,
+        inputLatencySec: 0.05,
+        audioLatencySec: 0.0,
+      };
+      beats = generateSongBeats(track.id, defaultGrid, track.duration, track.difficulty);
+      track.beats = beats; // Save it to the original track object so it persists!
+    }
+
+    const resetBeats = beats.map((b) => ({
+      ...b,
+      hit: false,
+      miss: false,
+      hitRating: undefined,
+    }));
+
+    const playableTrack = {
       ...track,
-      beats: generateSongBeats(track.id, track.bpm, track.duration, track.difficulty),
+      beats: resetBeats,
     };
 
-    setSelectedTrack(randomizedTrack);
+    setSelectedTrack(playableTrack);
     setCurrentTime(0);
 
     // 2. Trigger Countdown (3 seconds) to let user posture/step back
@@ -124,7 +145,7 @@ export default function App() {
         if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
         
         // Starts Web Audio synthesizer
-        gameAudioEngine.startSong(randomizedTrack, (beatTime, beatIndex) => {
+        gameAudioEngine.startSong(playableTrack, (beatTime, beatIndex) => {
           // Sync timing
         });
       }
