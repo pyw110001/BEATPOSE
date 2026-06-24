@@ -65,7 +65,8 @@ void main() {
   uv /= max(uScale, 0.0001);
 
   float e = 0.06 + uIntensity * 0.94;
-  float env = pow(max(cos(uv.x * PI * 1.3), 0.0), uTaper);
+  float normX = (gl_FragCoord.x - 0.5 * uResolution.x) / (0.5 * uResolution.x);
+  float env = pow(max(cos(normX * PI * 0.5), 0.0), uTaper);
 
   vec3 col = vec3(0.0);
 
