@@ -8,6 +8,7 @@ import { SongTrack, PoseData, BeatNote, CalibrationData, GameStats } from '../ty
 import { gameAudioEngine } from '../lib/audioEngine';
 import { translations } from '../lib/translations';
 import Strands from './Strands';
+import Galaxy from './Galaxy';
 
 interface GameCanvasProps {
   track: SongTrack;
@@ -253,8 +254,8 @@ export default function GameCanvas({
     // 2. Draw 3D-effect floor grid
     drawGrid(ctx, width, height, combo);
 
-    // 2.5 Draw ambient background particles
-    drawAmbientParticles(ctx, width, height);
+    // 2.5 Draw ambient background particles (disabled in favor of WebGL Galaxy starfield)
+    // drawAmbientParticles(ctx, width, height);
 
     // 3. Render calibration visual thresholds
     drawCalibrationGuides(ctx, width, height);
@@ -766,6 +767,20 @@ export default function GameCanvas({
       id="game-canvas-screen" 
       className="relative w-full aspect-[4/3] rounded-2xl overflow-hidden border border-white/10 shadow-2xl flex justify-center items-center select-none bg-[#120F17] shadow-violet-500/5"
     >
+      {/* Background WebGL Galaxy particle animation */}
+      <div className="absolute inset-0 z-0 pointer-events-none opacity-45">
+        <Galaxy 
+          mouseInteraction={false}
+          density={1.2}
+          glowIntensity={0.35}
+          saturation={0.7}
+          hueShift={280}
+          twinkleIntensity={0.5}
+          rotationSpeed={0.03}
+          pulseRef={gridPulseIntensityRef}
+        />
+      </div>
+
       {/* Background WebGL Strands animation from React Bits */}
       <div 
         className="absolute left-0 right-0 w-full z-0 pointer-events-none"
