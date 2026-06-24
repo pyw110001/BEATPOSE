@@ -55,6 +55,90 @@ interface FloatingText {
   decayRate?: number;
 }
 
+interface HitBurst {
+  id: string;
+  x: number;
+  y: number;
+  color1: string;
+  color2: string;
+  progress: number;
+  isPerfect: boolean;
+}
+
+function interpolateColor(color1: string, color2: string, factor: number): string {
+  const parseHex = (c: string) => {
+    const hex = c.replace('#', '');
+    const r = parseInt(hex.substring(0, 2), 16);
+    const g = parseInt(hex.substring(2, 4), 16);
+    const b = parseInt(hex.substring(4, 6), 16);
+    return { r, g, b };
+  };
+
+  try {
+    const c1 = parseHex(color1);
+    const c2 = parseHex(color2);
+    const r = Math.round(c1.r + (c2.r - c1.r) * factor);
+    const g = Math.round(c1.g + (c2.g - c1.g) * factor);
+    const b = Math.round(c1.b + (c2.b - c1.b) * factor);
+    return `rgb(${r}, ${g}, ${b})`;
+  } catch (e) {
+    return color1;
+  }
+}
+
+function smoothstep(min: number, max: number, value: number): number {
+  const x = Math.max(0, Math.min(1, (value - min) / (max - min)));
+  return x * x * (3 - 2 * x);
+}
+
+const drawMagicRings2D = (
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  baseRadius: number,
+  color1: string,
+  color2: string,
+  time: number,
+  opacity: number,
+  pulse: number
+) => {
+  const ringCount = 5;
+  const radiusStep = 8;
+  const baseThickness = 2.0;
+
+  ctx.save();
+  ctx.globalAlpha = opacity;
+
+  for (let i = 0; i < ringCount; i++) {
+    const radius = baseRadius + i * radiusStep + pulse * (10 + i * 4);
+    const thickness = (baseThickness - i * 0.25) * (1.0 + pulse * 1.5);
+    
+    const colorFactor = i / (ringCount - 1);
+    const ringColor = interpolateColor(color1, color2, colorFactor);
+
+    const rotationSpeed = (0.5 + (ringCount - i) * 0.15);
+    const rotationDir = i % 2 === 0 ? 1 : -1;
+    const angleOffset = time * rotationSpeed * rotationDir;
+
+    const arcLength = (Math.PI * 0.7) - (i * 0.08);
+    
+    ctx.beginPath();
+    ctx.strokeStyle = ringColor;
+    ctx.lineWidth = thickness;
+    ctx.shadowColor = ringColor;
+    ctx.shadowBlur = 10 + pulse * 8;
+
+    ctx.beginPath();
+    ctx.arc(x, y, radius, angleOffset, angleOffset + arcLength);
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.arc(x, y, radius, angleOffset + Math.PI, angleOffset + Math.PI + arcLength);
+    ctx.stroke();
+  }
+  ctx.restore();
+};
+
 export default function GameCanvas({
   track,
   currentTime,
@@ -75,6 +159,7 @@ export default function GameCanvas({
   const beatsRef = useRef<BeatNote[]>([]);
   const particlesRef = useRef<Particle[]>([]);
   const floatingTextsRef = useRef<FloatingText[]>([]);
+  const hitBurstsRef = useRef<HitBurst[]>([]);
   const finishedTriggeredRef = useRef(false);
 
   // Visual enhancement refs
@@ -94,6 +179,7 @@ export default function GameCanvas({
     finishedTriggeredRef.current = false;
     particlesRef.current = [];
     floatingTextsRef.current = [];
+    hitBurstsRef.current = [];
   }, [track]);
 
   // Main rendering & collision loops
@@ -161,6 +247,27 @@ export default function GameCanvas({
   // Push glowing spark particles in a radial blast explosion pattern
   // Push glowing spark particles in a radial blast explosion pattern
   const addHitParticles = (x: number, y: number, color: string, isPerfect: boolean) => {
+    // Spawn Hit Burst Magic Rings
+    let color1 = color;
+    let color2 = '#ffffff';
+    if (color === '#f43f5e') {
+      color2 = '#fda4af';
+    } else if (color === '#a78bfa') {
+      color2 = '#67e8f9';
+    } else if (color === '#f59e0b') {
+      color2 = '#fde047';
+    }
+
+    hitBurstsRef.current.push({
+      id: Math.random().toString(),
+      x,
+      y,
+      color1,
+      color2,
+      progress: 0.0,
+      isPerfect,
+    });
+
     const fxIntensity = localStorage.getItem('game_fx_intensity') || 'high';
     const fxMultiplier = fxIntensity === 'high' ? 1.0 : fxIntensity === 'medium' ? 0.5 : 0.0;
     if (fxMultiplier === 0) return;
@@ -348,31 +455,26 @@ export default function GameCanvas({
           const rightColor = '#a78bfa'; // violet-400
           const color = note.type === 'left' ? leftColor : rightColor;
 
-          // Draw the dynamic target landing zone circle at (endX, endY)
+          // Draw the dynamic target landing zone circle at (endX, endY) using Magic Rings 2D
           const targetOpacity = Math.min(0.6, progress * 2.5); // Fades in quickly as the note approaches
-          // Breathing scale animation based on progress (sin wave oscillations, +/-8%)
           const breathingScale = 1.0 + 0.08 * Math.sin(progress * Math.PI * 4);
-          const targetRadius = 44 * breathingScale;
-
-          ctx.save();
-          ctx.globalAlpha = targetOpacity;
-          ctx.beginPath();
-          ctx.arc(endX, endY, targetRadius, 0, Math.PI * 2);
-          ctx.strokeStyle = color;
-          ctx.lineWidth = 3;
-          ctx.shadowColor = color;
-          ctx.shadowBlur = 10;
-          ctx.stroke();
+          const color1 = note.type === 'left' ? '#f43f5e' : '#a78bfa';
+          const color2 = note.type === 'left' ? '#fda4af' : '#67e8f9';
           
-          // Pulsing outer ring synchronized with BPM (pulse frequency = Math.PI * 2 radians per beat)
-          const pulseFreq = (bpm / 60) * Math.PI * 2;
-          const outerPulseOffset = Math.sin(currentTime * pulseFreq) * 3;
-          ctx.beginPath();
-          ctx.arc(endX, endY, targetRadius + outerPulseOffset, 0, Math.PI * 2);
-          ctx.strokeStyle = color;
-          ctx.lineWidth = 1;
-          ctx.stroke();
-          ctx.restore();
+          // Use breathingScale to pulse baseRadius slightly
+          const baseRadius = 24 * breathingScale;
+
+          drawMagicRings2D(
+            ctx,
+            endX,
+            endY,
+            baseRadius,
+            color1,
+            color2,
+            performance.now() / 1000,
+            targetOpacity,
+            gridPulseIntensityRef.current * 0.3
+          );
 
           // Glowing sphere outline
           ctx.beginPath();
@@ -480,6 +582,9 @@ export default function GameCanvas({
 
     // 7. Update and Draw active explosive hit particles
     updateAndDrawParticles(ctx);
+
+    // 7.5 Update and Draw hit bursts
+    updateAndDrawHitBursts(ctx, dt);
 
     // 8. Update and Draw floating texts
     updateAndDrawFloatingTexts(ctx);
@@ -706,6 +811,35 @@ export default function GameCanvas({
     }
 
     ctx.setLineDash([]);
+  };
+
+  const updateAndDrawHitBursts = (ctx: CanvasRenderingContext2D, dt: number) => {
+    const list = hitBurstsRef.current;
+    const time = performance.now() / 1000;
+    
+    hitBurstsRef.current = list.filter((burst) => {
+      burst.progress += dt * 3.5;
+      if (burst.progress >= 1.0) return false;
+
+      const maxExpansion = burst.isPerfect ? 66 : 46;
+      const baseRadius = 24 + burst.progress * maxExpansion;
+      
+      const opacity = smoothstep(1.0, 0.0, burst.progress);
+      
+      drawMagicRings2D(
+        ctx,
+        burst.x,
+        burst.y,
+        baseRadius,
+        burst.color1,
+        burst.color2,
+        time,
+        opacity,
+        1.0 - burst.progress
+      );
+
+      return true;
+    });
   };
 
   const updateAndDrawParticles = (ctx: CanvasRenderingContext2D) => {
