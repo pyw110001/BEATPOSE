@@ -130,3 +130,60 @@ TEMPLATE_SONGS.forEach((song) => {
     song.beats = generateSongBeats(song.id, song.beatGrid, song.duration, song.difficulty);
   }
 });
+
+// Generate notes directly at the detected beat positions
+export function generateBeatsFromPositions(
+  id: string,
+  beatPositions: number[],
+  difficulty: 'Easy' | 'Medium' | 'Hard'
+): ChartNote[] {
+  const beats: ChartNote[] = [];
+  
+  // Choose frequency step based on difficulty
+  let stepInterval = 4;
+  if (difficulty === 'Medium') stepInterval = 2;
+  if (difficulty === 'Hard') stepInterval = 1;
+
+  let idCounter = 1;
+
+  for (let i = 0; i < beatPositions.length; i += stepInterval) {
+    const beatTime = beatPositions[i];
+    
+    // Preparation buffer: don't spawn notes in the first 3.5 seconds
+    if (beatTime < 3.5) continue;
+
+    const index = beats.length;
+    let type: BeatType = 'left';
+    if (index % 8 === 7) {
+      type = 'crouch';
+    } else if (index % 2 === 1) {
+      type = 'right';
+    }
+
+    const randomRange = (min: number, max: number) => parseFloat((Math.random() * (max - min) + min).toFixed(3));
+
+    let xFraction = 0.5;
+    let yFraction = 0.35;
+
+    if (type === 'left') {
+      xFraction = randomRange(0.15, 0.42);
+      yFraction = randomRange(0.38, 0.65);
+    } else if (type === 'right') {
+      xFraction = randomRange(0.58, 0.85);
+      yFraction = randomRange(0.38, 0.65);
+    }
+
+    beats.push({
+      id: `${id}_beat_${idCounter++}`,
+      beat: i,
+      time: parseFloat(beatTime.toFixed(3)),
+      type,
+      x: xFraction,
+      y: yFraction,
+      hit: false,
+      miss: false,
+    });
+  }
+
+  return beats;
+}

@@ -61,6 +61,8 @@ export interface SongTrack {
   beatGrid?: BeatGrid;
   isCustom?: boolean;
   audioBuffer?: AudioBuffer;
+  detectedBeats?: number[];
+  detectedOnsets?: number[];
 }
 
 export type GameStatus = 'IDLE' | 'CALIBRATING' | 'PLAYING' | 'GAMEOVER';

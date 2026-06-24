@@ -6,9 +6,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Play, Flame, Award, HelpCircle, Activity, Star, RefreshCw, Trophy, Zap, Compass, Sparkles, Smile, ShieldCheck, Upload, Music, Plus, Loader2 } from 'lucide-react';
 import { SongTrack, GameStats, CalibrationData } from '../types';
-import { TEMPLATE_SONGS, generateSongBeats } from '../lib/beatGenerator';
+import { TEMPLATE_SONGS, generateSongBeats, generateBeatsFromPositions } from '../lib/beatGenerator';
 import { gameAudioEngine } from '../lib/audioEngine';
 import { translations } from '../lib/translations';
+import { analyzeAudioBuffer } from '../lib/audioAnalysis';
 
 interface DashboardProps {
   onStartTrack: (track: SongTrack) => void;
@@ -48,6 +49,11 @@ export default function Dashboard({
   const [firstBeatOffsetSec, setFirstBeatOffsetSec] = useState(0.0);
   const [inputLatencySec, setInputLatencySec] = useState(0.05); // 50ms default
   const [isPreviewPlaying, setIsPreviewPlaying] = useState(false);
+  
+  // Analysis states for Essentia.js
+  const [analysisStatus, setAnalysisStatus] = useState<'idle' | 'decoding' | 'analyzing' | 'done'>('idle');
+  const [detectedBeats, setDetectedBeats] = useState<number[]>([]);
+  const [detectedOnsets, setDetectedOnsets] = useState<number[]>([]);
 
   // Sync preview ended state naturally
   useEffect(() => {
@@ -102,6 +108,7 @@ export default function Dashboard({
 
     setError(null);
     setUploading(true);
+    setAnalysisStatus('decoding');
     setSongName(file.name.replace(/\.[^/.]+$/, '')); // Default title is filename without extension
 
     const reader = new FileReader();
@@ -110,9 +117,20 @@ export default function Dashboard({
         const arrayBuffer = event.target?.result as ArrayBuffer;
         const decodedBuffer = await gameAudioEngine.decodeAudio(arrayBuffer);
         setCustomAudioBuffer(decodedBuffer);
+        
+        // Start Essentia.js analysis
+        setAnalysisStatus('analyzing');
+        const analysis = await analyzeAudioBuffer(decodedBuffer);
+        
+        setBpm(analysis.bpm);
+        setDetectedBeats(analysis.beats);
+        setDetectedOnsets(analysis.onsets);
+        setAnalysisStatus('done');
       } catch (err: any) {
         console.error(err);
-        setError(t.errorDecode);
+        setError(t.errorDecode || 'Failed to decode or analyze audio');
+        setAnalysisStatus('idle');
+        setCustomAudioBuffer(null);
       } finally {
         setUploading(false);
       }
@@ -120,6 +138,7 @@ export default function Dashboard({
     reader.onerror = () => {
       setError(t.errorRead);
       setUploading(false);
+      setAnalysisStatus('idle');
     };
     reader.readAsArrayBuffer(file);
   };
@@ -145,21 +164,27 @@ export default function Dashboard({
       audioLatencySec: 0.0,
     };
 
-    // Generate beats based on BeatGrid, duration and difficulty
-    const beats = generateSongBeats(newTrackId, beatGrid, duration, difficulty);
+    // Generate beats based on detected beat positions or fallback to BeatGrid
+    const beats = detectedBeats.length > 0
+      ? generateBeatsFromPositions(newTrackId, detectedBeats, difficulty)
+      : generateSongBeats(newTrackId, beatGrid, duration, difficulty);
 
     const newTrack: SongTrack = {
       id: newTrackId,
       name: songName,
-      genre: lang === 'zh' ? '自定义上传' : 'Custom Upload',
+      genre: lang === 'zh' ? '自定义分析音轨' : 'Custom Analyzed Track',
       bpm: bpm,
       duration: duration,
       difficulty: difficulty,
-      description: lang === 'zh' ? '您上传的本地音乐音轨，已准备就绪！' : 'Your uploaded local music track. Ready to play!',
+      description: lang === 'zh' 
+        ? `基于 Essentia.js 智能提取，共 ${detectedBeats.length} 个节拍点，${detectedOnsets.length} 个瞬态峰值点。` 
+        : `Extracted via Essentia.js: ${detectedBeats.length} beats, ${detectedOnsets.length} onset transients.`,
       beats: beats,
       beatGrid: beatGrid,
       isCustom: true,
       audioBuffer: customAudioBuffer,
+      detectedBeats: detectedBeats.length > 0 ? detectedBeats : undefined,
+      detectedOnsets: detectedOnsets.length > 0 ? detectedOnsets : undefined,
     };
 
     onAddCustomTrack(newTrack);
@@ -171,6 +196,9 @@ export default function Dashboard({
     setDifficulty('Medium');
     setFirstBeatOffsetSec(0.0);
     setInputLatencySec(0.05);
+    setDetectedBeats([]);
+    setDetectedOnsets([]);
+    setAnalysisStatus('idle');
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -378,7 +406,9 @@ export default function Dashboard({
               {uploading ? (
                 <>
                   <Loader2 className="w-6 h-6 text-violet-400 animate-spin mb-2" />
-                  <span className="text-[11px] font-mono text-violet-300">{t.decodingAudio}</span>
+                  <span className="text-[11px] font-mono text-violet-300">
+                    {analysisStatus === 'decoding' ? t.decodingAudio : t.analyzingAudio}
+                  </span>
                 </>
               ) : customAudioBuffer ? (
                 <>
@@ -406,6 +436,31 @@ export default function Dashboard({
             {/* Form settings (Visible once file is loaded) */}
             {customAudioBuffer && (
               <div className="space-y-3.5 pt-2 border-t border-white/5 animate-in fade-in slide-in-from-top-2 duration-300">
+                {/* Essentia.js Analysis Results Display */}
+                {detectedBeats.length > 0 && (
+                  <div className="bg-violet-500/5 border border-violet-500/25 rounded-xl p-3.5 space-y-2.5 animate-in fade-in zoom-in-95 duration-300">
+                    <div className="flex items-center gap-1.5 text-violet-400">
+                      <Sparkles className="w-3.5 h-3.5 text-violet-400 animate-pulse animate-duration-1000" />
+                      <span className="text-[10px] font-bold font-mono tracking-wide uppercase">{t.analysisComplete}</span>
+                    </div>
+                    
+                    <div className="grid grid-cols-3 gap-2">
+                      <div className="bg-black/30 border border-white/5 rounded-lg p-2 text-center">
+                        <span className="text-[8px] text-white/40 block uppercase font-mono tracking-wider">{t.detectedBpm}</span>
+                        <span className="text-sm font-black text-white font-mono tracking-tighter">{bpm}</span>
+                      </div>
+                      <div className="bg-black/30 border border-white/5 rounded-lg p-2 text-center">
+                        <span className="text-[8px] text-white/40 block uppercase font-mono tracking-wider">{t.detectedBeats}</span>
+                        <span className="text-sm font-black text-violet-300 font-mono tracking-tighter">{detectedBeats.length}</span>
+                      </div>
+                      <div className="bg-black/30 border border-white/5 rounded-lg p-2 text-center">
+                        <span className="text-[8px] text-white/40 block uppercase font-mono tracking-wider">{t.detectedOnsets}</span>
+                        <span className="text-sm font-black text-cyan-300 font-mono tracking-tighter">{detectedOnsets.length}</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {/* Preview controls */}
                 <div className="flex gap-2">
                   <button

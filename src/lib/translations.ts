@@ -77,6 +77,11 @@ export const translations = {
     // Upload Custom Music
     uploadCustomMusic: "UPLOAD CUSTOM MUSIC",
     decodingAudio: "Decoding audio track...",
+    analyzingAudio: "Analyzing beats & tempo (Essentia.js)...",
+    analysisComplete: "Analysis complete!",
+    detectedBpm: "Detected BPM",
+    detectedBeats: "Detected Beats",
+    detectedOnsets: "Detected Onsets",
     audioLoaded: "Audio Loaded",
     clickReplace: "Click to replace audio file",
     selectFile: "Select MP3/WAV file",
@@ -199,6 +204,11 @@ export const translations = {
     // Upload Custom Music
     uploadCustomMusic: "上传您的本地音乐",
     decodingAudio: "正在解码音频轨道...",
+    analyzingAudio: "正在分析节奏与速度 (Essentia.js)...",
+    analysisComplete: "音频节奏分析完成！",
+    detectedBpm: "检测出的速度 (BPM)",
+    detectedBeats: "检测出的总节拍数",
+    detectedOnsets: "检测出的瞬态峰值点",
     audioLoaded: "音频加载成功",
     clickReplace: "点击更换音频文件",
     selectFile: "选择 MP3/WAV 格式音频",
