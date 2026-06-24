@@ -206,6 +206,7 @@ interface StrandsProps {
   glassSize?: number;
   className?: string;
   style?: React.CSSProperties;
+  pulseRef?: React.RefObject<number>;
 }
 
 export default function Strands({
@@ -228,7 +229,8 @@ export default function Strands({
   dispersion = 1,
   glassSize = 1,
   className = '',
-  style
+  style,
+  pulseRef
 }: StrandsProps) {
   const propsRef = useRef<any>({});
   propsRef.current = {
@@ -336,20 +338,21 @@ export default function Strands({
     const update = (t: number) => {
       animateId = requestAnimationFrame(update);
       const current = propsRef.current;
+      const pulse = pulseRef?.current ?? 0;
       program.uniforms.uTime.value = t * 0.001;
       program.uniforms.uColors.value = buildPalette(current.colors);
       program.uniforms.uColorCount.value = Math.min(current.colors.length, MAX_COLORS);
       program.uniforms.uStrandCount.value = Math.min(Math.max(Math.round(current.count), 1), MAX_STRANDS);
       program.uniforms.uSpeed.value = current.speed;
-      program.uniforms.uAmplitude.value = current.amplitude;
+      program.uniforms.uAmplitude.value = current.amplitude + pulse * 0.8;
       program.uniforms.uWaviness.value = current.waviness;
-      program.uniforms.uThickness.value = current.thickness;
-      program.uniforms.uGlow.value = current.glow;
+      program.uniforms.uThickness.value = current.thickness + pulse * 0.35;
+      program.uniforms.uGlow.value = current.glow + pulse * 2.8;
       program.uniforms.uTaper.value = current.taper;
       program.uniforms.uSpread.value = current.spread;
       program.uniforms.uHueShift.value = current.hueShift;
-      program.uniforms.uIntensity.value = current.intensity;
-      program.uniforms.uOpacity.value = current.opacity;
+      program.uniforms.uIntensity.value = current.intensity + pulse * 0.85;
+      program.uniforms.uOpacity.value = current.opacity + pulse * 0.35;
       program.uniforms.uScale.value = current.scale;
       program.uniforms.uSaturation.value = current.saturation;
 

@@ -428,6 +428,8 @@ export default function GameCanvas({
               note.hitRating = rating;
               if (rating === 'Perfect') {
                 gridPulseIntensityRef.current = 1.0;
+              } else {
+                gridPulseIntensityRef.current = 0.6;
               }
 
               gameAudioEngine.playHitSound(note.type);
@@ -519,27 +521,7 @@ export default function GameCanvas({
       ctx.stroke();
     }
 
-    // Horizon line itself - dynamic color based on combo (purple -> magenta -> orange)
-    const comboFactor = Math.min(1.0, currentCombo / 20.0);
-    // Hue: 260 (purple) -> 340 (magenta/pink) -> 375 (15: orange)
-    const hue = 260 + (375 - 260) * comboFactor;
-    const finalHue = hue % 360;
-
-    const lineColor = `hsla(${finalHue}, 100%, 75%, 0.85)`;
-    const glowColor = `hsl(${finalHue}, 95%, 60%)`;
-
-    // Dynamic horizon line neon glow
-    ctx.save();
-    ctx.shadowBlur = 12 + comboFactor * 16; // glow size increases with combo
-    ctx.shadowColor = glowColor;
-    
-    ctx.beginPath();
-    ctx.moveTo(0, horizonY);
-    ctx.lineTo(width, horizonY);
-    ctx.strokeStyle = lineColor;
-    ctx.lineWidth = 2.5 + comboFactor * 1.5; // thicker at high combos
-    ctx.stroke();
-    ctx.restore();
+    // Horizon line itself has been removed. We keep other grid features intact.
 
     // Floor lines grouping scrolling forward synchronized with song BPM
     const bpm = track.bpm || 120;
@@ -785,7 +767,10 @@ export default function GameCanvas({
       className="relative w-full aspect-[4/3] rounded-2xl overflow-hidden border border-white/10 shadow-2xl flex justify-center items-center select-none bg-[#120F17] shadow-violet-500/5"
     >
       {/* Background WebGL Strands animation from React Bits */}
-      <div className="absolute inset-0 z-0 pointer-events-none">
+      <div 
+        className="absolute left-0 right-0 w-full z-0 pointer-events-none"
+        style={{ top: '28%', height: '140px', transform: 'translateY(-50%)' }}
+      >
         <Strands
           colors={["#f43f5e", "#7c3aed", "#38bdf8", "#fb7185"]}
           count={4}
@@ -801,6 +786,7 @@ export default function GameCanvas({
           opacity={0.65}
           scale={1.25}
           glass={false}
+          pulseRef={gridPulseIntensityRef}
         />
       </div>
 
