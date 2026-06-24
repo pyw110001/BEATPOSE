@@ -91,6 +91,47 @@ function smoothstep(min: number, max: number, value: number): number {
   return x * x * (3 - 2 * x);
 }
 
+const drawFadingArc2D = (
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  radius: number,
+  startAngle: number,
+  endAngle: number,
+  color: string,
+  thickness: number,
+  shadowBlurVal: number
+) => {
+  const steps = 12;
+  const angleSpan = endAngle - startAngle;
+  const stepAngle = angleSpan / steps;
+
+  for (let s = 0; s < steps; s++) {
+    const a1 = startAngle + s * stepAngle;
+    const a2 = a1 + stepAngle;
+    
+    // Sine wave fading (bright in the middle, fading to 0 at the ends)
+    const t = (s + 0.5) / steps;
+    const alpha = Math.sin(t * Math.PI); // 0 -> 1 -> 0
+
+    ctx.save();
+    ctx.globalAlpha = ctx.globalAlpha * alpha;
+    ctx.beginPath();
+    ctx.arc(x, y, radius, a1, a2);
+    ctx.strokeStyle = color;
+    // Taper the thickness as well for a smoother look
+    ctx.lineWidth = thickness * (0.3 + 0.7 * alpha);
+    
+    if (shadowBlurVal > 0) {
+      ctx.shadowColor = color;
+      ctx.shadowBlur = shadowBlurVal * alpha;
+    }
+    
+    ctx.stroke();
+    ctx.restore();
+  }
+};
+
 const drawMagicRings2D = (
   ctx: CanvasRenderingContext2D,
   x: number,
@@ -102,16 +143,16 @@ const drawMagicRings2D = (
   opacity: number,
   pulse: number
 ) => {
-  const ringCount = 5;
-  const radiusStep = 8;
-  const baseThickness = 2.0;
+  const ringCount = 4;
+  const radiusStep = 10;
+  const baseThickness = 2.2;
 
   ctx.save();
   ctx.globalAlpha = opacity;
 
   for (let i = 0; i < ringCount; i++) {
     const radius = baseRadius + i * radiusStep + pulse * (10 + i * 4);
-    const thickness = (baseThickness - i * 0.25) * (1.0 + pulse * 1.5);
+    const thickness = (baseThickness - i * 0.3) * (1.0 + pulse * 1.5);
     
     const colorFactor = i / (ringCount - 1);
     const ringColor = interpolateColor(color1, color2, colorFactor);
@@ -121,23 +162,35 @@ const drawMagicRings2D = (
     const angleOffset = time * rotationSpeed * rotationDir;
 
     const arcLength = (Math.PI * 0.7) - (i * 0.08);
-    
-    ctx.beginPath();
-    ctx.strokeStyle = ringColor;
-    ctx.lineWidth = thickness;
-    ctx.shadowColor = ringColor;
-    ctx.shadowBlur = 10 + pulse * 8;
+    const shadowBlurVal = 10 + pulse * 8;
 
-    ctx.beginPath();
-    ctx.arc(x, y, radius, angleOffset, angleOffset + arcLength);
-    ctx.stroke();
+    drawFadingArc2D(
+      ctx,
+      x,
+      y,
+      radius,
+      angleOffset,
+      angleOffset + arcLength,
+      ringColor,
+      thickness,
+      shadowBlurVal
+    );
 
-    ctx.beginPath();
-    ctx.arc(x, y, radius, angleOffset + Math.PI, angleOffset + Math.PI + arcLength);
-    ctx.stroke();
+    drawFadingArc2D(
+      ctx,
+      x,
+      y,
+      radius,
+      angleOffset + Math.PI,
+      angleOffset + Math.PI + arcLength,
+      ringColor,
+      thickness,
+      shadowBlurVal
+    );
   }
   ctx.restore();
 };
+
 
 export default function GameCanvas({
   track,
