@@ -9,6 +9,8 @@ import { gameAudioEngine } from '../lib/audioEngine';
 import { translations } from '../lib/translations';
 import Strands from './Strands';
 import Galaxy from './Galaxy';
+import CyberTunnel from './CyberTunnel';
+
 
 interface GameCanvasProps {
   track: SongTrack;
@@ -84,6 +86,48 @@ function interpolateColor(color1: string, color2: string, factor: number): strin
   } catch (e) {
     return color1;
   }
+}
+
+function getNoteTrack(note: BeatNote): { trackIdx: number; endX: number; endY: number } {
+  let trackIdx = 1; // 0 = Top, 1 = Middle, 2 = Bottom
+  if (note.y < 0.4) {
+    trackIdx = 0;
+  } else if (note.y > 0.6) {
+    trackIdx = 2;
+  }
+
+  let endX = 0.5;
+  let endY = 0.5;
+
+  if (note.type === 'left') {
+    if (trackIdx === 0) {
+      endX = 0.24;
+      endY = 0.24;
+    } else if (trackIdx === 1) {
+      endX = 0.16;
+      endY = 0.5;
+    } else {
+      endX = 0.24;
+      endY = 0.76;
+    }
+  } else if (note.type === 'right') {
+    if (trackIdx === 0) {
+      endX = 0.76;
+      endY = 0.24;
+    } else if (trackIdx === 1) {
+      endX = 0.84;
+      endY = 0.5;
+    } else {
+      endX = 0.76;
+      endY = 0.76;
+    }
+  } else {
+    // Crouch note (goes straight down center)
+    endX = 0.5;
+    endY = 0.82;
+  }
+
+  return { trackIdx, endX, endY };
 }
 
 function smoothstep(min: number, max: number, value: number): number {
@@ -361,16 +405,16 @@ export default function GameCanvas({
     });
 
     if (closestNote) {
+      const { endX, endY } = getNoteTrack(closestNote);
       return {
-        x: (closestNote as BeatNote).x * w,
-        y: (closestNote as BeatNote).y * h,
+        x: endX * w,
+        y: endY * h,
       };
     }
-    
-    // Fallback to default lane targets
+
     return {
-      x: type === 'left' ? 0.28 * w : 0.72 * w,
-      y: 0.48 * h,
+      x: type === 'left' ? 0.16 * w : 0.84 * w,
+      y: 0.5 * h,
     };
   };
 
@@ -453,8 +497,9 @@ export default function GameCanvas({
         gameAudioEngine.playMissSound();
         onScoreUpdate('Miss', note.type);
         
-        const spawnX = note.type === 'crouch' ? width / 2 : note.x * width;
-        const spawnY = note.type === 'crouch' ? height * 0.35 : note.y * height;
+        const trackData = getNoteTrack(note);
+        const spawnX = trackData.endX * width;
+        const spawnY = trackData.endY * height;
         addFloatingText(t.missRating, '#ef4444', spawnX, spawnY - 30);
         return;
       }
@@ -464,11 +509,12 @@ export default function GameCanvas({
         // Calculate progress percentage: 0.0 (just spawning far away) to 1.0 (perfect hit peak time)
         const progress = Math.max(0, 1.0 - timeDelta / approachSec);
         
-        let startX = width / 2;
-        let startY = height * 0.28; // Spawns from "horizon" midpoint
+        const startX = width / 2;
+        const startY = height * 0.5; // Tunnel center
 
-        const endX = note.type === 'crouch' ? width / 2 : note.x * width;
-        const endY = note.type === 'crouch' ? height * 0.32 : note.y * height;
+        const trackData = getNoteTrack(note);
+        const endX = trackData.endX * width;
+        const endY = trackData.endY * height;
 
         // Interpolate position based on progress 
         // We use an exponential swoop effect so it starts slow and accelerates forward!
@@ -509,12 +555,10 @@ export default function GameCanvas({
           const color = note.type === 'left' ? leftColor : rightColor;
 
           // Draw the dynamic target landing zone circle at (endX, endY) using Magic Rings 2D
-          const targetOpacity = Math.min(0.6, progress * 2.5); // Fades in quickly as the note approaches
+          const targetOpacity = Math.min(0.65, progress * 2.5); // Fades in quickly as the note approaches
           const breathingScale = 1.0 + 0.08 * Math.sin(progress * Math.PI * 4);
           const color1 = note.type === 'left' ? '#f43f5e' : '#a78bfa';
           const color2 = note.type === 'left' ? '#fda4af' : '#67e8f9';
-          
-          // Use breathingScale to pulse baseRadius slightly
           const baseRadius = 24 * breathingScale;
 
           drawMagicRings2D(
@@ -771,15 +815,13 @@ export default function GameCanvas({
     const obsHeight = 35;
     const obsWidth = width * 0.8 * progress; // Spreads out wide as it approaches
 
-    const ry = height * 0.25 + (height * 0.15 * progress);
-
     ctx.save();
     // Glowing neon orange orange bar
     ctx.beginPath();
-    ctx.rect(x - obsWidth / 2, ry, obsWidth, obsHeight);
+    ctx.rect(x - obsWidth / 2, y - obsHeight / 2, obsWidth, obsHeight);
     
     // Gradient forcefield flash to highlight urgent dodge action (Rose/Magenta to Violet)
-    const warningGrad = ctx.createLinearGradient(x - obsWidth/2, ry, x + obsWidth/2, ry);
+    const warningGrad = ctx.createLinearGradient(x - obsWidth/2, y, x + obsWidth/2, y);
     warningGrad.addColorStop(0, 'rgba(244, 63, 94, 0.85)');
     warningGrad.addColorStop(0.5, 'rgba(192, 38, 211, 0.95)');
     warningGrad.addColorStop(1, 'rgba(244, 63, 94, 0.85)');
@@ -800,7 +842,7 @@ export default function GameCanvas({
       ctx.textAlign = 'center';
       ctx.shadowBlur = 8;
       ctx.shadowColor = '#ff3300';
-      ctx.fillText(t.duckObstacle, width / 2, ry - 14 + (Math.sin(currentTime * 20) * 2));
+      ctx.fillText(t.duckObstacle, width / 2, y - obsHeight / 2 - 14 + (Math.sin(currentTime * 20) * 2));
       ctx.shadowBlur = 0;
     }
   };
@@ -954,6 +996,7 @@ export default function GameCanvas({
       id="game-canvas-screen" 
       className="relative w-full aspect-[4/3] rounded-2xl overflow-hidden border border-white/10 shadow-2xl flex justify-center items-center select-none bg-[#120F17] shadow-violet-500/5"
     >
+      {/* Background WebGL Cyber Tunnel animation matching user screenshot */}
       {/* Background WebGL Galaxy particle animation */}
       <div className="absolute inset-0 z-0 pointer-events-none opacity-45">
         <Galaxy 
@@ -964,6 +1007,17 @@ export default function GameCanvas({
           hueShift={280}
           twinkleIntensity={0.5}
           rotationSpeed={0.03}
+          pulseRef={gridPulseIntensityRef}
+        />
+      </div>
+
+      <div className="absolute inset-0 z-0 pointer-events-none opacity-85">
+        <CyberTunnel 
+          speed={0.3}
+          brightness={0.65}
+          color1="#7c3aed"
+          color2="#f43f5e"
+          color3="#38bdf8"
           pulseRef={gridPulseIntensityRef}
         />
       </div>
