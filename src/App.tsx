@@ -360,6 +360,7 @@ export default function App() {
                   onScoreUpdate={handleScoreUpdate}
                   onTrackFinished={handleTrackFinished}
                   lang={lang}
+                  combo={gameStats.combo}
                 />
               </div>
 

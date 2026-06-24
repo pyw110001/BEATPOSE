@@ -17,6 +17,18 @@ interface GameCanvasProps {
   isPlaying: boolean;
   onTrackFinished: () => void;
   lang: 'en' | 'zh';
+  combo: number;
+}
+
+interface AmbientParticle {
+  x: number;
+  y: number;
+  size: number;
+  speedX: number;
+  speedY: number;
+  color: string;
+  angle: number;
+  angleSpeed: number;
 }
 
 interface Particle {
@@ -37,6 +49,8 @@ interface FloatingText {
   x: number;
   y: number;
   alpha: number;
+  fontSize?: number;
+  decayRate?: number;
 }
 
 export default function GameCanvas({
@@ -48,6 +62,7 @@ export default function GameCanvas({
   isPlaying,
   onTrackFinished,
   lang,
+  combo,
 }: GameCanvasProps) {
   const t = translations[lang];
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -59,6 +74,13 @@ export default function GameCanvas({
   const particlesRef = useRef<Particle[]>([]);
   const floatingTextsRef = useRef<FloatingText[]>([]);
   const finishedTriggeredRef = useRef(false);
+
+  // Visual enhancement refs
+  const gridPulseIntensityRef = useRef<number>(0);
+  const lastFrameTimeRef = useRef<number>(performance.now());
+  const ambientParticlesRef = useRef<AmbientParticle[]>([]);
+  const missFlashIntensityRef = useRef<number>(0);
+  const prevComboRef = useRef<number>(0);
 
   // Calibration references
   const crouchYThreshold = calibration.crouchYThreshold || 0.65;
@@ -82,7 +104,16 @@ export default function GameCanvas({
     }
 
     const runLoop = () => {
+      const startTime = performance.now();
       renderGameFrames();
+      const duration = performance.now() - startTime;
+
+      if ((import.meta as any).env?.DEV && duration > 16.6) {
+        console.warn(
+          `[Performance Warning] GameCanvas frame render took ${duration.toFixed(2)}ms (Limit: 16.6ms for 60fps)`
+        );
+      }
+
       animationFrameRef.current = requestAnimationFrame(runLoop);
     };
 
@@ -93,10 +124,26 @@ export default function GameCanvas({
         cancelAnimationFrame(animationFrameRef.current);
       }
     };
-  }, [isPlaying, currentTime, poseData, calibration]);
+  }, [isPlaying, currentTime, poseData, calibration, combo]);
+
+  // Watch combo changes to trigger milestone notifications
+  useEffect(() => {
+    if (combo > 0 && combo % 10 === 0 && combo !== prevComboRef.current) {
+      // Trigger milestone text at center of canvas, glowing sky blue
+      addFloatingText(`${combo} COMBO!`, '#38bdf8', 320, 140, 24, 0.008);
+    }
+    prevComboRef.current = combo;
+  }, [combo]);
 
   // Push floating text indicator
-  const addFloatingText = (text: string, color: string, x: number, y: number) => {
+  const addFloatingText = (
+    text: string,
+    color: string,
+    x: number,
+    y: number,
+    fontSize?: number,
+    decayRate?: number
+  ) => {
     floatingTextsRef.current.push({
       id: Math.random().toString(),
       text,
@@ -104,15 +151,25 @@ export default function GameCanvas({
       x,
       y,
       alpha: 1.0,
+      fontSize,
+      decayRate,
     });
   };
 
-  // Push glowing spark particles
-  const addHitParticles = (x: number, y: number, color: string) => {
-    const count = 15;
+  // Push glowing spark particles in a radial blast explosion pattern
+  // Push glowing spark particles in a radial blast explosion pattern
+  const addHitParticles = (x: number, y: number, color: string, isPerfect: boolean) => {
+    const fxIntensity = localStorage.getItem('game_fx_intensity') || 'high';
+    const fxMultiplier = fxIntensity === 'high' ? 1.0 : fxIntensity === 'medium' ? 0.5 : 0.0;
+    if (fxMultiplier === 0) return;
+
+    const baseCount = isPerfect ? 16 : 8;
+    const count = Math.round(baseCount * fxMultiplier);
     for (let i = 0; i < count; i++) {
-      const angle = Math.random() * Math.PI * 2;
-      const speed = 2 + Math.random() * 5;
+      // Space angles evenly to form a radial blast, with slight random jitter
+      const angle = (i / count) * Math.PI * 2 + (Math.random() - 0.5) * 0.15;
+      // Fast, radial velocities
+      const speed = isPerfect ? (3 + Math.random() * 6.5) : (2 + Math.random() * 4.5);
       particlesRef.current.push({
         id: Math.random().toString(),
         x,
@@ -121,7 +178,7 @@ export default function GameCanvas({
         vy: Math.sin(angle) * speed,
         color,
         alpha: 1.0,
-        size: 3 + Math.random() * 4,
+        size: isPerfect ? (3.5 + Math.random() * 4) : (2.5 + Math.random() * 3),
       });
     }
   };
@@ -165,6 +222,21 @@ export default function GameCanvas({
     const width = canvas.width;
     const height = canvas.height;
 
+    // Calculate delta time (dt) for frame-rate independent visual animations/decay
+    const now = performance.now();
+    const dt = (now - lastFrameTimeRef.current) / 1000;
+    lastFrameTimeRef.current = now;
+
+    // Decay the grid Perfect-hit pulse intensity (decays to 0 in 250ms)
+    if (gridPulseIntensityRef.current > 0) {
+      gridPulseIntensityRef.current = Math.max(0, gridPulseIntensityRef.current - dt * 4.0);
+    }
+
+    // Decay the miss flash overlay (decays to 0 in 250ms)
+    if (missFlashIntensityRef.current > 0) {
+      missFlashIntensityRef.current = Math.max(0, missFlashIntensityRef.current - dt * 4.0);
+    }
+
     // Grid BPM and dynamic approach time based on beats (default 4 beats)
     const bpm = track.bpm || 120;
     const approachBeats = 4;
@@ -186,7 +258,10 @@ export default function GameCanvas({
     ctx.fillRect(0, 0, width, height);
 
     // 2. Draw 3D-effect floor grid
-    drawGrid(ctx, width, height);
+    drawGrid(ctx, width, height, combo);
+
+    // 2.5 Draw ambient background particles
+    drawAmbientParticles(ctx, width, height);
 
     // 3. Render calibration visual thresholds
     drawCalibrationGuides(ctx, width, height);
@@ -220,6 +295,7 @@ export default function GameCanvas({
       if (timeDelta < -0.28 && !note.hit && !note.miss) {
         note.miss = true;
         note.hitRating = 'Miss';
+        missFlashIntensityRef.current = 0.65; // Trigger fullscreen red vignette flash!
         gameAudioEngine.playMissSound();
         onScoreUpdate('Miss', note.type);
         
@@ -265,10 +341,11 @@ export default function GameCanvas({
             if (noseY > crouchYThreshold) {
               note.hit = true;
               note.hitRating = 'Perfect';
+              gridPulseIntensityRef.current = 1.0;
               gameAudioEngine.playHitSound('crouch');
               onScoreUpdate('Perfect', 'crouch');
               addFloatingText(t.dodgedPerfect, '#f59e0b', width / 2, height * 0.3);
-              addHitParticles(width / 2, height * 0.3, '#f59e0b');
+              addHitParticles(width / 2, height * 0.3, '#f59e0b', true);
             }
           }
         } else {
@@ -279,19 +356,25 @@ export default function GameCanvas({
 
           // Draw the dynamic target landing zone circle at (endX, endY)
           const targetOpacity = Math.min(0.6, progress * 2.5); // Fades in quickly as the note approaches
+          // Breathing scale animation based on progress (sin wave oscillations, +/-8%)
+          const breathingScale = 1.0 + 0.08 * Math.sin(progress * Math.PI * 4);
+          const targetRadius = 44 * breathingScale;
+
           ctx.save();
           ctx.globalAlpha = targetOpacity;
           ctx.beginPath();
-          ctx.arc(endX, endY, 44, 0, Math.PI * 2);
+          ctx.arc(endX, endY, targetRadius, 0, Math.PI * 2);
           ctx.strokeStyle = color;
           ctx.lineWidth = 3;
           ctx.shadowColor = color;
           ctx.shadowBlur = 10;
           ctx.stroke();
           
-          // Pulsing outer ring
+          // Pulsing outer ring synchronized with BPM (pulse frequency = Math.PI * 2 radians per beat)
+          const pulseFreq = (bpm / 60) * Math.PI * 2;
+          const outerPulseOffset = Math.sin(currentTime * pulseFreq) * 3;
           ctx.beginPath();
-          ctx.arc(endX, endY, 44 + Math.sin(currentTime * 10) * 3, 0, Math.PI * 2);
+          ctx.arc(endX, endY, targetRadius + outerPulseOffset, 0, Math.PI * 2);
           ctx.strokeStyle = color;
           ctx.lineWidth = 1;
           ctx.stroke();
@@ -350,6 +433,9 @@ export default function GameCanvas({
               
               note.hit = true;
               note.hitRating = rating;
+              if (rating === 'Perfect') {
+                gridPulseIntensityRef.current = 1.0;
+              }
 
               gameAudioEngine.playHitSound(note.type);
               onScoreUpdate(rating, note.type);
@@ -357,7 +443,7 @@ export default function GameCanvas({
               const hitColor = rating === 'Perfect' ? '#ffffff' : color;
               const ratingText = rating === 'Perfect' ? t.perfectRating : t.goodRating;
               addFloatingText(`${ratingText}!`, hitColor, endX, endY - 20);
-              addHitParticles(endX, endY, color);
+              addHitParticles(endX, endY, color, rating === 'Perfect');
             }
           }
         }
@@ -401,11 +487,30 @@ export default function GameCanvas({
 
     // 8. Update and Draw floating texts
     updateAndDrawFloatingTexts(ctx);
+
+    // 9. Draw fullscreen red vignette flash on Miss
+    const fxIntensity = localStorage.getItem('game_fx_intensity') || 'high';
+    if (fxIntensity !== 'low' && missFlashIntensityRef.current > 0) {
+      ctx.save();
+      ctx.globalAlpha = Math.min(0.65, missFlashIntensityRef.current);
+      
+      const grad = ctx.createRadialGradient(width / 2, height / 2, width * 0.35, width / 2, height / 2, width * 0.7);
+      grad.addColorStop(0, 'rgba(239, 68, 68, 0)');        // Transparent center
+      grad.addColorStop(1, 'rgba(239, 68, 68, 0.45)');     // Red vignette edge
+      
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, width, height);
+      ctx.restore();
+    }
   };
 
   // 3D Perspective horizon line grid drawer
-  const drawGrid = (ctx: CanvasRenderingContext2D, width: number, height: number) => {
-    ctx.strokeStyle = 'rgba(167, 139, 250, 0.08)'; // Violet tracking fanned mesh grids
+  const drawGrid = (ctx: CanvasRenderingContext2D, width: number, height: number, currentCombo: number) => {
+    const pulse = gridPulseIntensityRef.current;
+    
+    // Dynamic grid opacity: base 0.12, pulsing up to 0.60
+    const gridAlpha = 0.12 + 0.48 * pulse;
+    ctx.strokeStyle = `rgba(167, 139, 250, ${gridAlpha})`; // Violet tracking fanned mesh grids
     ctx.lineWidth = 1;
 
     // Horizon coordinates
@@ -421,16 +526,33 @@ export default function GameCanvas({
       ctx.stroke();
     }
 
-    // Horizon line itself
+    // Horizon line itself - dynamic color based on combo (purple -> magenta -> orange)
+    const comboFactor = Math.min(1.0, currentCombo / 20.0);
+    // Hue: 260 (purple) -> 340 (magenta/pink) -> 375 (15: orange)
+    const hue = 260 + (375 - 260) * comboFactor;
+    const finalHue = hue % 360;
+
+    const lineColor = `hsla(${finalHue}, 100%, 75%, 0.85)`;
+    const glowColor = `hsl(${finalHue}, 95%, 60%)`;
+
+    // Dynamic horizon line neon glow
+    ctx.save();
+    ctx.shadowBlur = 12 + comboFactor * 16; // glow size increases with combo
+    ctx.shadowColor = glowColor;
+    
     ctx.beginPath();
     ctx.moveTo(0, horizonY);
     ctx.lineTo(width, horizonY);
-    ctx.strokeStyle = 'rgba(244, 63, 94, 0.25)'; // Rose horizon line bar glow
-    ctx.lineWidth = 2;
+    ctx.strokeStyle = lineColor;
+    ctx.lineWidth = 2.5 + comboFactor * 1.5; // thicker at high combos
     ctx.stroke();
+    ctx.restore();
 
-    // Floor lines grouping scrolling forward based on currentTime mapping
-    const gridOffset = (currentTime * 110) % 40;
+    // Floor lines grouping scrolling forward synchronized with song BPM
+    const bpm = track.bpm || 120;
+    const scrollSpeed = (bpm / 120) * 110;
+    const floorAlpha = 0.08 + 0.32 * pulse;
+    const gridOffset = (currentTime * scrollSpeed) % 40;
     for (let y = horizonY; y < height; y += 40) {
       const cy = y + gridOffset;
       if (cy > horizonY && cy < height) {
@@ -438,10 +560,67 @@ export default function GameCanvas({
         // Curve perspective
         ctx.moveTo(0, cy);
         ctx.lineTo(width, cy);
-        ctx.strokeStyle = 'rgba(167, 139, 250, 0.05)';
+        ctx.strokeStyle = `rgba(167, 139, 250, ${floorAlpha})`;
         ctx.stroke();
       }
     }
+  };
+
+  // Lightweight background floating particles
+  const drawAmbientParticles = (ctx: CanvasRenderingContext2D, width: number, height: number) => {
+    const fxIntensity = localStorage.getItem('game_fx_intensity') || 'high';
+    if (fxIntensity === 'low') return;
+
+    const count = fxIntensity === 'medium' ? 18 : 35;
+
+    // Lazy initialize particle pool (35 particles)
+    if (ambientParticlesRef.current.length === 0) {
+      const colors = [
+        'rgba(167, 139, 250, 0.35)', // violet-400
+        'rgba(244, 63, 94, 0.35)',  // rose-500
+        'rgba(139, 92, 246, 0.25)', // violet-500
+        'rgba(245, 158, 11, 0.25)',  // amber-500
+      ];
+      for (let i = 0; i < count; i++) {
+        ambientParticlesRef.current.push({
+          x: Math.random() * width,
+          y: Math.random() * height,
+          size: 1.2 + Math.random() * 2.8,
+          speedX: (Math.random() - 0.5) * 0.2,
+          speedY: -0.15 - Math.random() * 0.35, // slow upwards drift
+          color: colors[Math.floor(Math.random() * colors.length)],
+          angle: Math.random() * Math.PI * 2,
+          angleSpeed: 0.005 + Math.random() * 0.015,
+        });
+      }
+    }
+
+    // Update and render ambient particles
+    ctx.save();
+    const activeParticles = ambientParticlesRef.current.slice(0, count);
+    activeParticles.forEach((p) => {
+      p.angle += p.angleSpeed;
+      // Drift horizontally with sine wave oscillation
+      const dx = Math.sin(p.angle) * 0.25;
+      p.x += p.speedX + dx;
+      p.y += p.speedY;
+
+      // Screen wrapping
+      if (p.y < 0) {
+        p.y = height;
+        p.x = Math.random() * width;
+      }
+      if (p.x < 0) p.x = width;
+      if (p.x > width) p.x = 0;
+
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+      ctx.fillStyle = p.color;
+      ctx.shadowBlur = 4;
+      ctx.shadowColor = p.color;
+      ctx.fill();
+    });
+    ctx.restore();
   };
 
   // Render crouch yellow giant barrier walls
@@ -584,14 +763,16 @@ export default function GameCanvas({
 
     floatingTextsRef.current = textList.filter((f) => {
       f.y -= 1.3; // Glide upwards
-      f.alpha -= 0.022;
+      const decay = f.decayRate !== undefined ? f.decayRate : 0.022;
+      f.alpha -= decay;
 
       if (f.alpha <= 0) return false;
 
       ctx.save();
       ctx.globalAlpha = f.alpha;
       ctx.fillStyle = f.color;
-      ctx.font = 'bold 15px "JetBrains Mono", sans-serif';
+      const size = f.fontSize !== undefined ? f.fontSize : 15;
+      ctx.font = `bold ${size}px "JetBrains Mono", sans-serif`;
       ctx.textAlign = 'center';
       
       // Shadow highlight
