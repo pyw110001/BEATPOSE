@@ -7,6 +7,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { SongTrack, PoseData, BeatNote, CalibrationData, GameStats } from '../types';
 import { gameAudioEngine } from '../lib/audioEngine';
 import { translations } from '../lib/translations';
+import Strands from './Strands';
 
 interface GameCanvasProps {
   track: SongTrack;
@@ -246,16 +247,8 @@ export default function GameCanvas({
     const inputLatencySec = track.beatGrid?.inputLatencySec || 0.0;
     const judgeTime = currentTime - inputLatencySec;
 
-    // 1. Reset Context with Pitch Black background matching Immersive UI
-    ctx.fillStyle = '#050505';
-    ctx.fillRect(0, 0, width, height);
-
-    // Draw dynamic radial background center glow
-    const radialGrad = ctx.createRadialGradient(width / 2, height / 2, 50, width / 2, height / 2, width * 0.75);
-    radialGrad.addColorStop(0, 'rgba(139, 92, 246, 0.12)'); // Violet center touch
-    radialGrad.addColorStop(1, '#050505');
-    ctx.fillStyle = radialGrad;
-    ctx.fillRect(0, 0, width, height);
+    // 1. Clear context with transparent background to let WebGL Strands show through
+    ctx.clearRect(0, 0, width, height);
 
     // 2. Draw 3D-effect floor grid
     drawGrid(ctx, width, height, combo);
@@ -789,25 +782,45 @@ export default function GameCanvas({
     <div 
       ref={containerRef} 
       id="game-canvas-screen" 
-      className="relative w-full aspect-[4/3] rounded-2xl overflow-hidden border border-white/10 shadow-2xl flex justify-center items-center select-none bg-black shadow-violet-500/5"
+      className="relative w-full aspect-[4/3] rounded-2xl overflow-hidden border border-white/10 shadow-2xl flex justify-center items-center select-none bg-[#120F17] shadow-violet-500/5"
     >
+      {/* Background WebGL Strands animation from React Bits */}
+      <div className="absolute inset-0 z-0 pointer-events-none">
+        <Strands
+          colors={["#f43f5e", "#7c3aed", "#38bdf8", "#fb7185"]}
+          count={4}
+          speed={0.45}
+          amplitude={0.8}
+          waviness={1.1}
+          thickness={0.65}
+          glow={2.2}
+          taper={2}
+          spread={1.25}
+          intensity={0.65}
+          saturation={1.5}
+          opacity={0.65}
+          scale={1.25}
+          glass={false}
+        />
+      </div>
+
       <canvas
         ref={canvasRef}
         width={640}
         height={480}
-        className="w-full h-full object-cover"
+        className="relative w-full h-full object-cover z-10 bg-transparent"
       />
       
       {/* Decorative HUD metadata indicators */}
-      <div className="absolute top-3 left-3 flex items-center gap-1.5 bg-[#050505]/80 backdrop-blur border border-white/10 px-3 py-1 rounded-md text-[9px] text-white/50 font-mono tracking-wider uppercase">
+      <div className="absolute z-20 top-3 left-3 flex items-center gap-1.5 bg-[#050505]/80 backdrop-blur border border-white/10 px-3 py-1 rounded-md text-[9px] text-white/50 font-mono tracking-wider uppercase">
         {t.streakActive}
       </div>
 
       {/* Corner Accents matching BeatPose Immersive feed design */}
-      <div className="absolute top-0 left-0 w-6 h-6 border-t-2 border-l-2 border-white/20 m-3 pointer-events-none"></div>
-      <div className="absolute top-0 right-0 w-6 h-6 border-t-2 border-r-2 border-white/20 m-3 pointer-events-none"></div>
-      <div className="absolute bottom-0 left-0 w-6 h-6 border-b-2 border-l-2 border-white/20 m-3 pointer-events-none"></div>
-      <div className="absolute bottom-0 right-0 w-6 h-6 border-b-2 border-r-2 border-white/20 m-3 pointer-events-none"></div>
+      <div className="absolute z-20 top-0 left-0 w-6 h-6 border-t-2 border-l-2 border-white/20 m-3 pointer-events-none"></div>
+      <div className="absolute z-20 top-0 right-0 w-6 h-6 border-t-2 border-r-2 border-white/20 m-3 pointer-events-none"></div>
+      <div className="absolute z-20 bottom-0 left-0 w-6 h-6 border-b-2 border-l-2 border-white/20 m-3 pointer-events-none"></div>
+      <div className="absolute z-20 bottom-0 right-0 w-6 h-6 border-b-2 border-r-2 border-white/20 m-3 pointer-events-none"></div>
     </div>
   );
 }
