@@ -1,0 +1,6 @@
+{
+  "name": "Beat Pose Rhythm",
+  "description": "An interactive rhythm-pose browser game inspired by Beat Saber, utilizing camera-based real-time pose estimation to match beats.",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
