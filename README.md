@@ -53,18 +53,14 @@
 
 ---
 
-## 📤 部署到 GitHub Pages
+## 📤 自动化部署 (GitHub Pages)
 
-游戏已支持自动化打包和部署到 GitHub Pages：
+本项目配置了 GitHub Actions 自动化部署流程：
 
-1. **一键构建与部署**：
-   ```bash
-   npm run deploy
-   ```
-   该命令会自动执行 `npm run build`，并将输出的静态资源推送到 GitHub 远端仓库的 `gh-pages` 分支。
+1. **自动构建与部署**：
+   每当有代码推送到 `main` 分支时，GitHub Actions 会自动触发构建，并将生成的静态资源部署到 GitHub Pages。
 
 2. **在线体验**：
-   部署成功后，您可以在浏览器中直接体验：
    [https://pyw110001.github.io/BEATPOSE/](https://pyw110001.github.io/BEATPOSE/)
 
 ---
