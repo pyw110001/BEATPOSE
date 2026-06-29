@@ -13,6 +13,42 @@ import CyberTunnel from './CyberTunnel';
 import Hyperspeed from './Hyperspeed';
 
 
+const HYPERSPEED_OPTIONS = {
+  distortion: 'centeredTurbulentDistortion',
+  length: 400,
+  roadWidth: 10,
+  islandWidth: 2,
+  lanesPerRoad: 3,
+  fov: 90,
+  fovSpeedUp: 150,
+  speedUp: 2.5,
+  carLightsFade: 0.4,
+  totalSideLightSticks: 20,
+  lightPairsPerRoadWay: 40,
+  shoulderLinesWidthPercentage: 0.05,
+  brokenLinesWidthPercentage: 0.1,
+  brokenLinesLengthPercentage: 0.5,
+  lightStickWidth: [0.12, 0.5],
+  lightStickHeight: [1.3, 1.7],
+  movingAwaySpeed: [60, 80],
+  movingCloserSpeed: [-120, -160],
+  carLightsLength: [12, 80],
+  carLightsRadius: [0.05, 0.14],
+  carWidthPercentage: [0.3, 0.5],
+  carShiftX: [-0.8, 0.8],
+  carFloorSeparation: [0, 5],
+  colors: {
+    roadColor: 0x080808,
+    islandColor: 0x0a0a0a,
+    background: 0x000000,
+    shoulderLines: 0x38bdf8,
+    brokenLines: 0x7c3aed,
+    leftCars: [0xD856BF, 0x6750A2, 0xC247AC],
+    rightCars: [0x03B3C3, 0x0E5EA5, 0x324555],
+    sticks: 0x03B3C3
+  }
+};
+
 interface GameCanvasProps {
   track: SongTrack;
   currentTime: number;
@@ -1023,69 +1059,9 @@ export default function GameCanvas({
         />
       </div>
 
-      {/* WebGL Hyperspeed highway replacing the flat grid lines */}
+      {/* WebGL Hyperspeed highway replacing the flat grid lines and Strands */}
       <div className="absolute inset-0 z-0 pointer-events-none opacity-70">
-        <Hyperspeed
-          effectOptions={{
-            distortion: 'turbulentDistortion',
-            length: 400,
-            roadWidth: 10,
-            islandWidth: 2,
-            lanesPerRoad: 3,
-            fov: 90,
-            fovSpeedUp: 150,
-            speedUp: 2.5,
-            carLightsFade: 0.4,
-            totalSideLightSticks: 20,
-            lightPairsPerRoadWay: 40,
-            shoulderLinesWidthPercentage: 0.05,
-            brokenLinesWidthPercentage: 0.1,
-            brokenLinesLengthPercentage: 0.5,
-            lightStickWidth: [0.12, 0.5],
-            lightStickHeight: [1.3, 1.7],
-            movingAwaySpeed: [60, 80],
-            movingCloserSpeed: [-120, -160],
-            carLightsLength: [12, 80],
-            carLightsRadius: [0.05, 0.14],
-            carWidthPercentage: [0.3, 0.5],
-            carShiftX: [-0.8, 0.8],
-            carFloorSeparation: [0, 5],
-            colors: {
-              roadColor: 0x080808,
-              islandColor: 0x0a0a0a,
-              background: 0x000000,
-              shoulderLines: 0x38bdf8,
-              brokenLines: 0x7c3aed,
-              leftCars: [0xD856BF, 0x6750A2, 0xC247AC],
-              rightCars: [0x03B3C3, 0x0E5EA5, 0x324555],
-              sticks: 0x03B3C3
-            }
-          }}
-        />
-      </div>
-
-      {/* Background WebGL Strands animation from React Bits */}
-      <div 
-        className="absolute left-0 right-0 w-full z-0 pointer-events-none"
-        style={{ top: '28%', height: '140px', transform: 'translateY(-50%)' }}
-      >
-        <Strands
-          colors={["#f43f5e", "#7c3aed", "#38bdf8", "#fb7185"]}
-          count={4}
-          speed={0.45}
-          amplitude={0.8}
-          waviness={1.1}
-          thickness={0.65}
-          glow={2.2}
-          taper={2}
-          spread={1.25}
-          intensity={0.65}
-          saturation={1.5}
-          opacity={0.65}
-          scale={1.25}
-          glass={false}
-          pulseRef={gridPulseIntensityRef}
-        />
+        <Hyperspeed effectOptions={HYPERSPEED_OPTIONS} pulseRef={gridPulseIntensityRef} />
       </div>
 
       <canvas

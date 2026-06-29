@@ -1,4 +1,4 @@
-import { BloomEffect, EffectComposer, EffectPass, RenderPass, SMAAEffect, SMAAPreset } from 'postprocessing';
+import { BloomEffect, EffectComposer, EffectPass, RenderPass } from 'postprocessing';
 import React, { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 
@@ -82,9 +82,10 @@ const DEFAULT_EFFECT_OPTIONS: HyperspeedEffectOptions = {
 
 interface HyperspeedProps {
   effectOptions?: Partial<HyperspeedEffectOptions>;
+  pulseRef?: React.MutableRefObject<number>;
 }
 
-const Hyperspeed: React.FC<HyperspeedProps> = ({ effectOptions = {} }) => {
+const Hyperspeed: React.FC<HyperspeedProps> = ({ effectOptions = {}, pulseRef }) => {
   const hyperspeed = useRef<HTMLDivElement>(null);
   const appRef = useRef<any>(null);
 
@@ -129,6 +130,45 @@ const Hyperspeed: React.FC<HyperspeedProps> = ({ effectOptions = {} }) => {
     let nsin = (val: number) => Math.sin(val) * 0.5 + 0.5;
 
     const distortions: any = {
+      straightDistortion: {
+        uniforms: {},
+        getDistortion: `
+          vec3 getDistortion(float progress){
+            return vec3(0., 0., 0.);
+          }
+        `,
+        getJS: (progress: number, time: number) => {
+          return new THREE.Vector3(0, 0, -5);
+        }
+      },
+      centeredTurbulentDistortion: {
+        uniforms: turbulentUniforms,
+        getDistortion: `
+          uniform vec4 uFreq;
+          uniform vec4 uAmp;
+          float nsin(float val){
+            return sin(val) * 0.5 + 0.5;
+          }
+          #define PI 3.14159265358979
+          float getDistortionX(float progress){
+            float rawDistortion = (
+              cos(PI * progress * uFreq.r + uTime) * uAmp.r +
+              pow(cos(PI * progress * uFreq.g + uTime * (uFreq.g / uFreq.r)), 2. ) * uAmp.g
+            );
+            return rawDistortion * sin(progress * PI);
+          }
+          vec3 getDistortion(float progress){
+            return vec3(
+              getDistortionX(progress) - getDistortionX(0.0125),
+              0.,
+              0.
+            );
+          }
+        `,
+        getJS: (progress: number, time: number) => {
+          return new THREE.Vector3(0, -4, -10);
+        }
+      },
       mountainDistortion: {
         uniforms: mountainUniforms,
         getDistortion: `
@@ -422,11 +462,11 @@ const Hyperspeed: React.FC<HyperspeedProps> = ({ effectOptions = {} }) => {
         const initH = Math.max(1, container.offsetHeight);
 
         this.renderer = new THREE.WebGLRenderer({
-          antialias: false,
+          antialias: true,
           alpha: true
         });
         this.renderer.setSize(initW, initH, false);
-        this.renderer.setPixelRatio(window.devicePixelRatio);
+        this.renderer.setPixelRatio(Math.min(2, window.devicePixelRatio));
         this.composer = new EffectComposer(this.renderer);
         container.append(this.renderer.domElement);
 
@@ -506,54 +546,24 @@ const Hyperspeed: React.FC<HyperspeedProps> = ({ effectOptions = {} }) => {
 
       initPasses() {
         this.renderPass = new RenderPass(this.scene, this.camera);
+        
         this.bloomPass = new EffectPass(
           this.camera,
           new BloomEffect({
-            luminanceThreshold: 0.2,
-            luminanceSmoothing: 0,
-            resolutionScale: 1
+            luminanceThreshold: 0.35,
+            luminanceSmoothing: 0.1,
+            resolutionScale: 0.25
           })
         );
 
-        const smaaPass = new EffectPass(
-          this.camera,
-          new SMAAEffect({
-            preset: SMAAPreset.MEDIUM,
-            searchImage: SMAAEffect.searchImageDataURL,
-            areaImage: SMAAEffect.areaImageDataURL
-          })
-        );
         this.renderPass.renderToScreen = false;
-        this.bloomPass.renderToScreen = false;
-        smaaPass.renderToScreen = true;
+        this.bloomPass.renderToScreen = true;
         this.composer.addPass(this.renderPass);
         this.composer.addPass(this.bloomPass);
-        this.composer.addPass(smaaPass);
       }
 
       loadAssets() {
-        const assets = this.assets;
-        return new Promise<void>(resolve => {
-          const manager = new THREE.LoadingManager(() => resolve());
-
-          const searchImage = new Image();
-          const areaImage = new Image();
-          assets.smaa = {};
-          searchImage.addEventListener('load', function () {
-            assets.smaa.search = this;
-            manager.itemEnd('smaa-search');
-          });
-
-          areaImage.addEventListener('load', function () {
-            assets.smaa.area = this;
-            manager.itemEnd('smaa-area');
-          });
-          manager.itemStart('smaa-search');
-          manager.itemStart('smaa-area');
-
-          searchImage.src = SMAAEffect.searchImageDataURL;
-          areaImage.src = SMAAEffect.areaImageDataURL;
-        });
+        return Promise.resolve();
       }
 
       init() {
@@ -615,6 +625,12 @@ const Hyperspeed: React.FC<HyperspeedProps> = ({ effectOptions = {} }) => {
 
         let time = this.clock.elapsedTime + this.timeOffset;
 
+        // Update uPulse in shaders if pulseRef is provided
+        const pulseVal = this.options.pulseRef ? this.options.pulseRef.current : 0.0;
+        this.rightCarLights.mesh.material.uniforms.uPulse.value = pulseVal;
+        this.leftCarLights.mesh.material.uniforms.uPulse.value = pulseVal;
+        this.leftSticks.mesh.material.uniforms.uPulse.value = pulseVal;
+
         this.rightCarLights.update(time);
         this.leftCarLights.update(time);
         this.leftSticks.update(time);
@@ -645,7 +661,12 @@ const Hyperspeed: React.FC<HyperspeedProps> = ({ effectOptions = {} }) => {
       }
 
       render(delta: number) {
-        this.composer.render(delta);
+        const fxIntensity = localStorage.getItem('game_fx_intensity') || 'high';
+        if (fxIntensity === 'low') {
+          this.renderer.render(this.scene, this.camera);
+        } else {
+          this.composer.render(delta);
+        }
       }
 
       dispose() {
@@ -873,7 +894,8 @@ const Hyperspeed: React.FC<HyperspeedProps> = ({ effectOptions = {} }) => {
             {
               uTime: { value: 0 },
               uTravelLength: { value: options.length },
-              uFade: { value: this.fade }
+              uFade: { value: this.fade },
+              uPulse: { value: 0 }
             },
             this.webgl.fogUniforms,
             options.distortion.uniforms
@@ -904,8 +926,9 @@ const Hyperspeed: React.FC<HyperspeedProps> = ({ effectOptions = {} }) => {
       varying vec3 vColor;
       varying vec2 vUv; 
       uniform vec2 uFade;
+      uniform float uPulse;
       void main() {
-        vec3 color = vec3(vColor);
+        vec3 color = vec3(vColor) * (1.0 + uPulse * 12.0);
         float alpha = smoothstep(uFade.x, uFade.y, vUv.x);
         gl_FragColor = vec4(color, alpha);
         if (gl_FragColor.a < 0.0001) discard;
@@ -1001,7 +1024,8 @@ const Hyperspeed: React.FC<HyperspeedProps> = ({ effectOptions = {} }) => {
           uniforms: Object.assign(
             {
               uTravelLength: { value: options.length },
-              uTime: { value: 0 }
+              uTime: { value: 0 },
+              uPulse: { value: 0 }
             },
             this.webgl.fogUniforms,
             options.distortion.uniforms
@@ -1070,9 +1094,10 @@ const Hyperspeed: React.FC<HyperspeedProps> = ({ effectOptions = {} }) => {
       #define USE_FOG;
       ${THREE.ShaderChunk['fog_pars_fragment']}
       varying vec3 vColor;
+      uniform float uPulse;
       void main(){
-        vec3 color = vec3(vColor);
-        gl_FragColor = vec4(color,1.);
+        vec3 color = vec3(vColor) * (1.0 + uPulse * 12.0);
+        gl_FragColor = vec4(color, 1.);
         ${THREE.ShaderChunk['fog_fragment']}
       }
     `;
@@ -1141,13 +1166,11 @@ const Hyperspeed: React.FC<HyperspeedProps> = ({ effectOptions = {} }) => {
       }
 
       init() {
-        this.leftRoadWay = this.createPlane(-1, this.options.roadWidth, true);
-        this.rightRoadWay = this.createPlane(1, this.options.roadWidth, true);
-        this.island = this.createPlane(0, this.options.islandWidth, false);
+        // Do not create/add road and island planes to scene to keep background transparent
       }
 
       update(time: number) {
-        this.uTime.value = time;
+        // No road meshes to update
       }
     }
 
@@ -1189,6 +1212,7 @@ const Hyperspeed: React.FC<HyperspeedProps> = ({ effectOptions = {} }) => {
     `;
 
     const roadMarkings_fragment = `
+      highp float travelTime = mod(uTime * 0.05, 1.0);
       uv.y = mod(uv.y + uTime * 0.05, 1.);
       float laneWidth = 1.0 / uLanes;
       float brokenLineWidth = laneWidth * uBrokenLinesWidthPercentage;
@@ -1243,7 +1267,8 @@ const Hyperspeed: React.FC<HyperspeedProps> = ({ effectOptions = {} }) => {
     const options = {
       ...DEFAULT_EFFECT_OPTIONS,
       ...effectOptions,
-      colors: { ...DEFAULT_EFFECT_OPTIONS.colors, ...effectOptions.colors }
+      colors: { ...DEFAULT_EFFECT_OPTIONS.colors, ...effectOptions.colors },
+      pulseRef
     };
     options.distortion = distortions[options.distortion];
 
@@ -1256,7 +1281,7 @@ const Hyperspeed: React.FC<HyperspeedProps> = ({ effectOptions = {} }) => {
         appRef.current.dispose();
       }
     };
-  }, [effectOptions]);
+  }, [effectOptions, pulseRef]);
 
   return <div className="w-full h-full" ref={hyperspeed}></div>;
 };
