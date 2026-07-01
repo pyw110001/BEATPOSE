@@ -34,6 +34,17 @@ export default function App() {
     localStorage.setItem('app_lang', nextLang);
   };
 
+  const [sfxEnabled, setSfxEnabled] = useState<boolean>(() => {
+    const cached = localStorage.getItem('game_sfx_enabled');
+    return cached !== 'false';
+  });
+
+  const handleToggleSfx = () => {
+    const nextSfx = !sfxEnabled;
+    setSfxEnabled(nextSfx);
+    localStorage.setItem('game_sfx_enabled', nextSfx.toString());
+  };
+
   const t = translations[lang];
 
   // Calibration settings default state
@@ -173,7 +184,7 @@ export default function App() {
   };
 
   // Score updates from canvas collision events
-  const handleScoreUpdate = (rating: 'Perfect' | 'Good' | 'Miss', type: 'left' | 'right' | 'crouch') => {
+  const handleScoreUpdate = (rating: 'Perfect' | 'Good' | 'BadCut' | 'Miss', type: 'left' | 'right' | 'crouch') => {
     setGameStats((prev) => {
       let scoreAdd = 0;
       let nextCombo = prev.combo;
@@ -189,6 +200,10 @@ export default function App() {
         nextCombo += 1;
         scoreAdd = 50 * (1 + Math.floor(nextCombo / 10));
         nextGood += 1;
+      } else if (rating === 'BadCut') {
+        nextCombo = 0; // Reset streak
+        scoreAdd = 10;
+        nextMiss += 1; // Count as miss for statistics
       } else {
         nextCombo = 0; // Miss resets streak
         nextMiss += 1;
@@ -258,8 +273,16 @@ export default function App() {
           )}
 
           <button
+            onClick={handleToggleSfx}
+            className="flex items-center justify-center bg-white/5 border border-white/10 hover:bg-white/10 hover:border-white/20 text-white font-mono font-bold text-[10px] px-3 py-1.5 rounded-md cursor-pointer transition active:scale-95 uppercase tracking-wider gap-1.5"
+          >
+            <Volume2 className="w-3.5 h-3.5" />
+            {sfxEnabled ? t.sfxOn : t.sfxOff}
+          </button>
+
+          <button
             onClick={handleToggleLang}
-            className="flex items-center justify-center bg-white/5 border border-white/10 hover:bg-white/10 hover:border-white/20 text-white font-mono font-bold text-[10px] px-3 py-1 rounded-md cursor-pointer transition active:scale-95 uppercase tracking-wider"
+            className="flex items-center justify-center bg-white/5 border border-white/10 hover:bg-white/10 hover:border-white/20 text-white font-mono font-bold text-[10px] px-3 py-1.5 rounded-md cursor-pointer transition active:scale-95 uppercase tracking-wider"
           >
             {lang === 'en' ? '中文' : 'EN'}
           </button>

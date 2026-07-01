@@ -117,26 +117,25 @@ class GlobalPoseManager {
       if (!(window as any).Camera) {
         await this.loadScript('https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js');
       }
-      if (!(window as any).Pose) {
-        await this.loadScript('https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js');
+      if (!(window as any).Hands) {
+        await this.loadScript('https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js');
       }
 
       this.loadingProgress = t.initializingML;
       this.notify();
 
-      const PoseObj = (window as any).Pose;
-      if (!PoseObj) {
-        throw new Error('MediaPipe Pose library is missing');
+      const HandsObj = (window as any).Hands;
+      if (!HandsObj) {
+        throw new Error('MediaPipe Hands library is missing');
       }
 
-      this.poseInstance = new PoseObj({
-        locateFile: (file: string) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`,
+      this.poseInstance = new HandsObj({
+        locateFile: (file: string) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`,
       });
 
       this.poseInstance.setOptions({
+        maxNumHands: 2,
         modelComplexity: 1,
-        smoothLandmarks: true,
-        enableSegmentation: false,
         minDetectionConfidence: 0.5,
         minTrackingConfidence: 0.5,
       });
@@ -234,31 +233,82 @@ class GlobalPoseManager {
       ctx.fillRect(0, 0, width, height);
     }
 
-    if (!results.poseLandmarks) return;
+    const poseData: PoseData = {};
+    let maxHandY = 0.4;
 
-    const landmarks = results.poseLandmarks;
-    const liftKeypoint = (idx: number): Keypoint | undefined => {
-      const kp = landmarks[idx];
-      if (!kp || kp.visibility < 0.4) return undefined;
-      return {
-        x: 1 - kp.x,
-        y: kp.y,
-        score: kp.visibility,
-      };
-    };
+    const HAND_CONNECTIONS = [
+      [0, 1], [1, 2], [2, 3], [3, 4], // Thumb
+      [0, 5], [5, 6], [6, 7], [7, 8], // Index
+      [0, 9], [9, 10], [10, 11], [11, 12], // Middle
+      [0, 13], [13, 14], [14, 15], [15, 16], // Ring
+      [0, 17], [17, 18], [18, 19], [19, 20], // Pinky
+      [5, 9], [9, 13], [13, 17], [0, 5], [0, 17] // Palm
+    ];
 
-    const poseData: PoseData = {
-      nose: liftKeypoint(0),
-      leftEye: liftKeypoint(2),
-      rightEye: liftKeypoint(5),
-      leftShoulder: liftKeypoint(11),
-      rightShoulder: liftKeypoint(12),
-      leftElbow: liftKeypoint(13),
-      rightElbow: liftKeypoint(14),
-      leftWrist: liftKeypoint(15),
-      rightWrist: liftKeypoint(16),
-      leftHip: liftKeypoint(23),
-      rightHip: liftKeypoint(24),
+    if (results.multiHandLandmarks && results.multiHandedness) {
+      for (let i = 0; i < results.multiHandLandmarks.length; i++) {
+        const landmarks = results.multiHandLandmarks[i];
+        const handedness = results.multiHandedness[i];
+        if (!handedness) continue;
+
+        const isRight = (handedness.label || handedness.categoryName) === 'Right';
+        const color = isRight ? '#f43f5e' : '#a78bfa'; // Right hand (screen left) = Rose/Red, Left hand (screen right) = Violet/Cyan
+
+        ctx.strokeStyle = color;
+        ctx.fillStyle = color;
+        ctx.lineWidth = 3;
+
+        // Draw connections
+        ctx.beginPath();
+        for (const [start, end] of HAND_CONNECTIONS) {
+          const p1 = landmarks[start];
+          const p2 = landmarks[end];
+          if (!p1 || !p2) continue;
+          ctx.moveTo((1 - p1.x) * width, p1.y * height);
+          ctx.lineTo((1 - p2.x) * width, p2.y * height);
+        }
+        ctx.stroke();
+
+        // Draw joints
+        for (const lm of landmarks) {
+          ctx.beginPath();
+          ctx.arc((1 - lm.x) * width, lm.y * height, 4, 0, 2 * Math.PI);
+          ctx.fill();
+        }
+
+        // Highlight index finger tip (Saber point) - Landmark 8
+        const tip = landmarks[8];
+        if (tip) {
+          ctx.beginPath();
+          ctx.fillStyle = '#ffffff';
+          ctx.shadowColor = color;
+          ctx.shadowBlur = 10;
+          ctx.arc((1 - tip.x) * width, tip.y * height, 8, 0, 2 * Math.PI);
+          ctx.fill();
+          ctx.shadowBlur = 0;
+
+          const keypoint: Keypoint = {
+            x: 1 - tip.x,
+            y: tip.y,
+            score: 1.0,
+          };
+
+          if (isRight) {
+            poseData.leftWrist = keypoint; // Physical right hand -> left side of screen -> left saber
+          } else {
+            poseData.rightWrist = keypoint; // Physical left hand -> right side of screen -> right saber
+          }
+
+          maxHandY = Math.max(maxHandY, tip.y);
+        }
+      }
+    }
+
+    // Set virtual nose coordinate for crouching
+    poseData.nose = {
+      x: 0.5,
+      y: maxHandY > 0.82 ? 0.85 : 0.4,
+      score: 1.0,
     };
 
     this.activeCallback(poseData);
@@ -279,72 +329,14 @@ function drawSkeletonHelper(
   neutralY: number,
   crouchThreshold: number
 ) {
-  const radius = 6;
-  const scale = (kp: Keypoint) => ({
-    x: kp.x * width,
-    y: kp.y * height,
-  });
-
-  const drawBone = (kp1: Keypoint | undefined, kp2: Keypoint | undefined, color: string, widthVal = 3) => {
-    if (!kp1 || !kp2) return;
-    const p1 = scale(kp1);
-    const p2 = scale(kp2);
-
-    ctx.beginPath();
-    ctx.moveTo(p1.x, p1.y);
-    ctx.lineTo(p2.x, p2.y);
-    ctx.strokeStyle = color;
-    ctx.lineWidth = widthVal;
-    ctx.lineCap = 'round';
-    ctx.shadowColor = color;
-    ctx.shadowBlur = 10;
-    ctx.stroke();
-    ctx.shadowBlur = 0;
-  };
-
-  const magenta = '#f43f5e';
-  const cyan = '#a78bfa';
-  const emerald = '#10b981';
-
-  drawBone(pose.leftShoulder, pose.leftElbow, magenta);
-  drawBone(pose.leftElbow, pose.leftWrist, magenta, 4);
-
-  drawBone(pose.rightShoulder, pose.rightElbow, cyan);
-  drawBone(pose.rightElbow, pose.rightWrist, cyan, 4);
-
-  drawBone(pose.leftShoulder, pose.rightShoulder, emerald);
-
-  drawBone(pose.leftShoulder, pose.leftHip, magenta, 2);
-  drawBone(pose.rightShoulder, pose.rightHip, cyan, 2);
-  drawBone(pose.leftHip, pose.rightHip, emerald);
-
-  Object.entries(pose).forEach(([key, kp]) => {
-    if (!kp) return;
-    const { x, y } = scale(kp);
-    
-    let pColor = emerald;
-    if (key.toLowerCase().includes('left')) pColor = magenta;
-    if (key.toLowerCase().includes('right')) pColor = cyan;
-
-    const isTargetNode = key === 'leftWrist' || key === 'rightWrist';
-    const r = isTargetNode ? radius * 2.2 : radius;
-
-    ctx.beginPath();
-    ctx.arc(x, y, r, 0, 2 * Math.PI);
-    ctx.fillStyle = pColor;
-    ctx.shadowColor = pColor;
-    ctx.shadowBlur = 15;
-    ctx.fill();
-
-    if (isTargetNode) {
-      ctx.beginPath();
-      ctx.arc(x, y, r + 4, 0, 2 * Math.PI);
-      ctx.strokeStyle = '#ffffff';
-      ctx.lineWidth = 1.5;
-      ctx.stroke();
-    }
-    ctx.shadowBlur = 0;
-  });
+  // Check if player nose is currently below threshold (ducking)
+  const nose = pose.nose;
+  if (nose && nose.y > crouchThreshold) {
+    // Draw green glow frame at borders
+    ctx.strokeStyle = '#10b981';
+    ctx.lineWidth = 8;
+    ctx.strokeRect(0, 0, width, height);
+  }
 
   if (isCalibrating) {
     ctx.beginPath();

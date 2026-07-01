@@ -44,7 +44,8 @@ export interface ChartNote {
   y: number;
   hit?: boolean;
   miss?: boolean;
-  hitRating?: 'Perfect' | 'Good' | 'Miss';
+  hitRating?: 'Perfect' | 'Good' | 'BadCut' | 'Miss';
+  cutDirection?: 'up' | 'down' | 'left' | 'right' | 'any';
 }
 
 export type BeatNote = ChartNote;

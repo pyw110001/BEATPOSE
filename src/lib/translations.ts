@@ -4,6 +4,8 @@ export const translations = {
     rhythmEngineActive: "RHYTHM ENGINE ACTIVE",
     sensorsLocked: "Sensors Locked",
     simulatorActive: "Simulator Active",
+    sfxOn: "SFX: ON",
+    sfxOff: "SFX: OFF",
     
     // Countdown
     preparePosture: "PREPARE YOUR POSTURE",
@@ -65,14 +67,14 @@ export const translations = {
     
     // How to Play
     howToPlay: "HOW TO PLAY",
-    matchTargetsTitle: "Match Neon Hit Targets",
-    matchTargetsDesc: "Left targets (Neon Magenta) must be hit using your Left Wrist. Right targets (Brilliant Cyan) must be hit with your Right Wrist.",
+    matchTargetsTitle: "Slash Neon Spark Blocks",
+    matchTargetsDesc: "Left notes (Neon Magenta) must be slashed using your Left Saber. Right notes (Brilliant Cyan) must be slashed using your Right Saber. Follow the arrow directions!",
     dodgeWallsTitle: "Dodge Obstacle Walls",
-    dodgeWallsDesc: "When large horizontal orange walls fly down, perform a crouch bend to escape their bounding collision boxes.",
+    dodgeWallsDesc: "When large horizontal orange walls fly down, perform a physical crouch to duck under them.",
     maintainCombosTitle: "Maintain High Streak Combos",
-    maintainCombosDesc: "Perfect and Good timings raise your combo multipliers. Misses reset combos instantly!",
-    deviceFallbackTitle: "Device fallback automatic simulation",
-    deviceFallbackDesc: "If camera script fails or webcam is blocked, you can use your Mouse Cursor and Space Bar inside the grid simulator to swipe hits effortlessly!",
+    maintainCombosDesc: "Perfect, Good, and Bad Direction timings change score multipliers. Misses and wrong cuts reset combos instantly!",
+    deviceFallbackTitle: "Mouse Control Simulator Fallback",
+    deviceFallbackDesc: "If camera is not ready, you can guide the sabers by sliding your mouse cursor and swing quickly to slash blocks. Hold Space to crouch!",
     
     // Upload Custom Music
     uploadCustomMusic: "UPLOAD CUSTOM MUSIC",
@@ -131,6 +133,8 @@ export const translations = {
     rhythmEngineActive: "节奏引擎已激活",
     sensorsLocked: "传感器已锁定",
     simulatorActive: "模拟器已激活",
+    sfxOn: "音效: 开启",
+    sfxOff: "音效: 关闭",
     
     // Countdown
     preparePosture: "准备好您的站姿",
@@ -192,14 +196,14 @@ export const translations = {
     
     // How to Play
     howToPlay: "游戏规则说明",
-    matchTargetsTitle: "击碎霓虹判定点",
-    matchTargetsDesc: "左侧粉色音符必须用您的左手腕击打，右侧紫色音符必须用您的右手腕击打。",
-    dodgeWallsTitle: "躲避橙色障碍墙",
-    dodgeWallsDesc: "当巨大的橙红色横向障碍墙飞来时，玩家需要做出物理下蹲动作以躲避其碰撞判定。",
+    matchTargetsTitle: "斩击霓虹音符方块",
+    matchTargetsDesc: "左侧粉色音符必须用您的左光剑斩击，右侧紫色音符必须用您的右光剑斩击。斩击方向必须与方块上的箭头一致！",
+    dodgeWallsTitle: "下蹲躲避障碍墙",
+    dodgeWallsDesc: "当巨大的横向橙红色障碍墙飞来时，请做出物理下蹲动作，以从障碍墙下方钻过。",
     maintainCombosTitle: "维持高连击倍率",
-    maintainCombosDesc: "Perfect 和 Good 判定将提升连击倍率以获得更高得分，Miss 则会直接使连击清零！",
-    deviceFallbackTitle: "无摄像头键鼠模拟游玩",
-    deviceFallbackDesc: "若摄像头无法加载或没有设备，您可以移动鼠标指针代表手腕动作，并按空格键或S键进行下蹲模拟！",
+    maintainCombosDesc: "完美、良好判定可增加连击，劈斩方向错误（Bad Cut）或漏击将直接导致连击清零！",
+    deviceFallbackTitle: "键鼠模拟器操作说明",
+    deviceFallbackDesc: "若没有摄像头，您可以滑动鼠标指针代表双手，快速移动以挥剑斩击方块。按住空格键或 S 键可以模拟下蹲！",
     
     // Upload Custom Music
     uploadCustomMusic: "上传您的本地音乐",

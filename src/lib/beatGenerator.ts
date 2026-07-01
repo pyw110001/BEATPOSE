@@ -34,9 +34,7 @@ export function generateSongBeats(
     // Choose the target beat action type
     const index = beats.length;
     let type: BeatType = 'left';
-    if (index % 8 === 7) {
-      type = 'crouch';
-    } else if (index % 2 === 1) {
+    if (index % 2 === 1) {
       type = 'right';
     }
 
@@ -55,6 +53,9 @@ export function generateSongBeats(
       yFraction = randomRange(0.38, 0.65); // Mid-height range
     }
 
+    const directions: ('up' | 'down' | 'left' | 'right' | 'any')[] = ['up', 'down', 'left', 'right', 'any'];
+    const cutDirection = directions[Math.floor(Math.random() * directions.length)];
+
     beats.push({
       id: `${id}_beat_${idCounter++}`,
       beat,
@@ -64,6 +65,7 @@ export function generateSongBeats(
       y: yFraction,
       hit: false,
       miss: false,
+      cutDirection,
     });
   }
 
@@ -154,9 +156,7 @@ export function generateBeatsFromPositions(
 
     const index = beats.length;
     let type: BeatType = 'left';
-    if (index % 8 === 7) {
-      type = 'crouch';
-    } else if (index % 2 === 1) {
+    if (index % 2 === 1) {
       type = 'right';
     }
 
@@ -173,6 +173,9 @@ export function generateBeatsFromPositions(
       yFraction = randomRange(0.38, 0.65);
     }
 
+    const directions: ('up' | 'down' | 'left' | 'right' | 'any')[] = ['up', 'down', 'left', 'right', 'any'];
+    const cutDirection = directions[Math.floor(Math.random() * directions.length)];
+
     beats.push({
       id: `${id}_beat_${idCounter++}`,
       beat: i,
@@ -182,6 +185,7 @@ export function generateBeatsFromPositions(
       y: yFraction,
       hit: false,
       miss: false,
+      cutDirection,
     });
   }
 

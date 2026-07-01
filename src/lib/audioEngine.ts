@@ -442,8 +442,8 @@ export class AudioEngine {
     subOsc.stop(time + 0.7);
   }
 
-  // --- Sound Effects ---
   public playHitSound(type: BeatType) {
+    if (localStorage.getItem('game_sfx_enabled') === 'false') return;
     this.initCtx();
     const ctx = this.ctx;
     if (!ctx) return;
@@ -479,6 +479,7 @@ export class AudioEngine {
   }
 
   public playMissSound() {
+    if (localStorage.getItem('game_sfx_enabled') === 'false') return;
     this.initCtx();
     const ctx = this.ctx;
     if (!ctx) return;
